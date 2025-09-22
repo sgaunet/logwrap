@@ -1,0 +1,34 @@
+# https://taskfile.dev
+version: '3'
+vars:
+  BINFILE: logwrap
+
+tasks:
+
+  default:
+    desc: "List tasks"
+    cmds:
+      - task -a
+
+  linter:
+    desc: "Run linter"
+    cmds:
+      - golangci-lint run
+
+
+  build:
+    desc: "Build binary"
+    cmds:
+      - CGO_ENABLED=0 go build -o {BINFILE} cmd/logwrap/*.go
+    # silent: true
+
+  snapshot:
+    desc: "Create snapshot"
+    cmds:
+      - GITLAB_TOKEN="" goreleaser --clean --snapshot
+    
+  release:
+    desc: "Create release"
+    cmds:
+      - GITLAB_TOKEN="" goreleaser --clean --skip validate
+    
