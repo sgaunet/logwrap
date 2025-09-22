@@ -19,7 +19,7 @@ tasks:
   build:
     desc: "Build binary"
     cmds:
-      - CGO_ENABLED=0 go build -o {BINFILE} cmd/logwrap/*.go
+      - CGO_ENABLED=0 go build -o {{ .BINFILE }} cmd/logwrap/*.go
     # silent: true
 
   snapshot:
