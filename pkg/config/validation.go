@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/sgaunet/logwrap/pkg/errors"
 )
 
+// Validate checks if the configuration is valid and returns an error if not.
 func (c *Config) Validate() error {
 	if err := c.validatePrefix(); err != nil {
 		return fmt.Errorf("prefix configuration error: %w", err)
@@ -24,7 +27,7 @@ func (c *Config) Validate() error {
 
 func (c *Config) validatePrefix() error {
 	if c.Prefix.Template == "" {
-		return fmt.Errorf("template cannot be empty")
+		return errors.ErrTemplateEmpty
 	}
 
 	if err := c.validateTimestamp(); err != nil {
@@ -48,7 +51,7 @@ func (c *Config) validatePrefix() error {
 
 func (c *Config) validateTimestamp() error {
 	if c.Prefix.Timestamp.Format == "" {
-		return fmt.Errorf("timestamp format cannot be empty")
+		return errors.ErrTimestampFormatEmpty
 	}
 
 	_, err := time.Parse(c.Prefix.Timestamp.Format, time.Now().Format(c.Prefix.Timestamp.Format))
@@ -84,8 +87,8 @@ func (c *Config) validateColors() error {
 
 	for _, color := range colors {
 		if !validColors[strings.ToLower(color.value)] {
-			return fmt.Errorf("invalid color '%s' for %s, valid colors: %s",
-				color.value, color.name, getValidColorsString())
+			return fmt.Errorf("%w '%s' for %s, valid colors: %s",
+				errors.ErrInvalidColor, color.value, color.name, getValidColorsString())
 		}
 	}
 
@@ -101,8 +104,8 @@ func (c *Config) validateUser() error {
 		}
 	}
 
-	return fmt.Errorf("invalid user format '%s', valid formats: %s",
-		c.Prefix.User.Format, strings.Join(validFormats, ", "))
+	return fmt.Errorf("%w '%s', valid formats: %s",
+		errors.ErrInvalidUserFormat, c.Prefix.User.Format, strings.Join(validFormats, ", "))
 }
 
 func (c *Config) validatePID() error {
@@ -114,8 +117,8 @@ func (c *Config) validatePID() error {
 		}
 	}
 
-	return fmt.Errorf("invalid PID format '%s', valid formats: %s",
-		c.Prefix.PID.Format, strings.Join(validFormats, ", "))
+	return fmt.Errorf("%w '%s', valid formats: %s",
+		errors.ErrInvalidPIDFormat, c.Prefix.PID.Format, strings.Join(validFormats, ", "))
 }
 
 func (c *Config) validateOutput() error {
@@ -128,8 +131,8 @@ func (c *Config) validateOutput() error {
 	}
 
 	if c.Output.Format != "text" && c.Output.Format != "json" && c.Output.Format != "structured" {
-		return fmt.Errorf("invalid output format '%s', valid formats: %s",
-			c.Output.Format, strings.Join(validFormats, ", "))
+		return fmt.Errorf("%w '%s', valid formats: %s",
+			errors.ErrInvalidOutputFormat, c.Output.Format, strings.Join(validFormats, ", "))
 	}
 
 	validBuffers := []string{"line", "none", "full"}
@@ -140,30 +143,30 @@ func (c *Config) validateOutput() error {
 		}
 	}
 
-	return fmt.Errorf("invalid buffer mode '%s', valid modes: %s",
-		c.Output.Buffer, strings.Join(validBuffers, ", "))
+	return fmt.Errorf("%w '%s', valid modes: %s",
+		errors.ErrInvalidBufferMode, c.Output.Buffer, strings.Join(validBuffers, ", "))
 }
 
 func (c *Config) validateLogLevel() error {
 	validLevels := []string{"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"}
 
 	if !isValidLogLevel(c.LogLevel.DefaultStdout, validLevels) {
-		return fmt.Errorf("invalid default stdout log level '%s', valid levels: %s",
-			c.LogLevel.DefaultStdout, strings.Join(validLevels, ", "))
+		return fmt.Errorf("%w '%s', valid levels: %s",
+			errors.ErrInvalidStdoutLogLevel, c.LogLevel.DefaultStdout, strings.Join(validLevels, ", "))
 	}
 
 	if !isValidLogLevel(c.LogLevel.DefaultStderr, validLevels) {
-		return fmt.Errorf("invalid default stderr log level '%s', valid levels: %s",
-			c.LogLevel.DefaultStderr, strings.Join(validLevels, ", "))
+		return fmt.Errorf("%w '%s', valid levels: %s",
+			errors.ErrInvalidStderrLogLevel, c.LogLevel.DefaultStderr, strings.Join(validLevels, ", "))
 	}
 
 	for level, keywords := range c.LogLevel.Detection.Keywords {
 		if !isValidLogLevel(strings.ToUpper(level), validLevels) {
-			return fmt.Errorf("invalid log level '%s' in detection keywords", level)
+			return fmt.Errorf("%w '%s' in detection keywords", errors.ErrInvalidLogLevel, level)
 		}
 
 		if len(keywords) == 0 {
-			return fmt.Errorf("log level '%s' has no detection keywords", level)
+			return fmt.Errorf("%w '%s'", errors.ErrNoDetectionKeywords, level)
 		}
 	}
 

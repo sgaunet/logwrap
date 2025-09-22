@@ -1,3 +1,4 @@
+// Package processor provides real-time stream processing functionality.
 package processor
 
 import (
@@ -7,12 +8,17 @@ import (
 	"io"
 	"sync"
 	"time"
+
+	"github.com/sgaunet/logwrap/pkg/errors"
 )
 
+// StreamType represents the type of stream (stdout or stderr).
 type StreamType int
 
 const (
+	// StreamStdout represents standard output stream.
 	StreamStdout StreamType = iota
+	// StreamStderr represents standard error stream.
 	StreamStderr
 )
 
@@ -27,35 +33,38 @@ func (s StreamType) String() string {
 	}
 }
 
+// Formatter defines the interface for formatting log lines.
 type Formatter interface {
 	FormatLine(line string, streamType StreamType) string
 }
 
+// Processor handles real-time processing of command output streams.
 type Processor struct {
 	formatter Formatter
 	output    io.Writer
-	ctx       context.Context
-	cancel    context.CancelFunc
 	wg        sync.WaitGroup
 	errors    []error
 	mutex     sync.Mutex
+	cancel    context.CancelFunc
 }
 
-type ProcessorOption func(*Processor)
+// Option defines a function that configures a Processor.
+type Option func(*Processor)
 
-func WithContext(ctx context.Context) ProcessorOption {
+// WithContext sets a custom context for the processor.
+func WithContext(ctx context.Context) Option {
 	return func(p *Processor) {
-		p.ctx, p.cancel = context.WithCancel(ctx)
+		_, p.cancel = context.WithCancel(ctx)
 	}
 }
 
-func New(formatter Formatter, output io.Writer, opts ...ProcessorOption) *Processor {
-	ctx, cancel := context.WithCancel(context.Background())
+// New creates a new Processor with the given formatter and output writer.
+func New(formatter Formatter, output io.Writer, opts ...Option) *Processor {
+	_, cancel := context.WithCancel(context.Background())
 
 	p := &Processor{
 		formatter: formatter,
 		output:    output,
-		ctx:       ctx,
 		cancel:    cancel,
 		errors:    make([]error, 0),
 	}
@@ -67,23 +76,25 @@ func New(formatter Formatter, output io.Writer, opts ...ProcessorOption) *Proces
 	return p
 }
 
-func (p *Processor) ProcessStreams(stdout, stderr io.Reader) error {
+// ProcessStreams processes both stdout and stderr streams concurrently.
+func (p *Processor) ProcessStreams(ctx context.Context, stdout, stderr io.Reader) error {
 	if stdout == nil || stderr == nil {
-		return fmt.Errorf("stdout and stderr readers cannot be nil")
+		return errors.ErrReadersNil
 	}
 
-	p.wg.Add(2)
+	const streamCount = 2
+	p.wg.Add(streamCount)
 
 	go func() {
 		defer p.wg.Done()
-		if err := p.processStream(stdout, StreamStdout); err != nil {
+		if err := p.processStream(ctx, stdout, StreamStdout); err != nil {
 			p.addError(fmt.Errorf("stdout processing error: %w", err))
 		}
 	}()
 
 	go func() {
 		defer p.wg.Done()
-		if err := p.processStream(stderr, StreamStderr); err != nil {
+		if err := p.processStream(ctx, stderr, StreamStderr); err != nil {
 			p.addError(fmt.Errorf("stderr processing error: %w", err))
 		}
 	}()
@@ -91,22 +102,62 @@ func (p *Processor) ProcessStreams(stdout, stderr io.Reader) error {
 	p.wg.Wait()
 
 	if len(p.errors) > 0 {
-		return fmt.Errorf("processing errors occurred: %v", p.errors)
+		return fmt.Errorf("%w: %v", errors.ErrProcessingErrors, p.errors)
 	}
 
 	return nil
 }
 
-func (p *Processor) processStream(stream io.Reader, streamType StreamType) error {
+// Stop cancels the processor context to stop stream processing.
+func (p *Processor) Stop() {
+	if p.cancel != nil {
+		p.cancel()
+	}
+}
+
+// Wait waits for stream processing to complete with a timeout.
+func (p *Processor) Wait(timeout time.Duration) error {
+	done := make(chan struct{})
+
+	go func() {
+		p.wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		return nil
+	case <-time.After(timeout):
+		p.Stop()
+		return fmt.Errorf("%w after %v", errors.ErrProcessorTimeout, timeout)
+	}
+}
+
+// GetErrors returns a copy of all processing errors that occurred.
+func (p *Processor) GetErrors() []error {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	errors := make([]error, len(p.errors))
+	copy(errors, p.errors)
+	return errors
+}
+
+func (p *Processor) processStream(ctx context.Context, stream io.Reader, streamType StreamType) error {
 	scanner := bufio.NewScanner(stream)
 
-	buf := make([]byte, 0, 64*1024)
-	scanner.Buffer(buf, 1024*1024)
+	const (
+		bufferSize     = 64 * 1024
+		maxScannerSize = 1024 * 1024
+	)
+
+	buf := make([]byte, 0, bufferSize)
+	scanner.Buffer(buf, maxScannerSize)
 
 	for scanner.Scan() {
 		select {
-		case <-p.ctx.Done():
-			return p.ctx.Err()
+		case <-ctx.Done():
+			return fmt.Errorf("context cancelled: %w", ctx.Err())
 		default:
 		}
 
@@ -132,36 +183,4 @@ func (p *Processor) addError(err error) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 	p.errors = append(p.errors, err)
-}
-
-func (p *Processor) Stop() {
-	if p.cancel != nil {
-		p.cancel()
-	}
-}
-
-func (p *Processor) Wait(timeout time.Duration) error {
-	done := make(chan struct{})
-
-	go func() {
-		p.wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		return nil
-	case <-time.After(timeout):
-		p.Stop()
-		return fmt.Errorf("processor wait timeout after %v", timeout)
-	}
-}
-
-func (p *Processor) GetErrors() []error {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
-
-	errors := make([]error, len(p.errors))
-	copy(errors, p.errors)
-	return errors
 }

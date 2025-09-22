@@ -1,10 +1,14 @@
+// Package main provides the logwrap command-line tool.
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"slices"
 
 	"github.com/sgaunet/logwrap/pkg/config"
+	"github.com/sgaunet/logwrap/pkg/errors"
 	"github.com/sgaunet/logwrap/pkg/executor"
 	"github.com/sgaunet/logwrap/pkg/formatter"
 	"github.com/sgaunet/logwrap/pkg/processor"
@@ -46,7 +50,8 @@ For more information, visit: https://github.com/sgaunet/logwrap`
 )
 
 func main() {
-	if len(os.Args) < 2 {
+	const minArgs = 2
+	if len(os.Args) < minArgs {
 		fmt.Fprintf(os.Stderr, "%s\n", usage)
 		os.Exit(1)
 	}
@@ -58,12 +63,12 @@ func main() {
 	}
 
 	if hasFlag(args, "-help") {
-		fmt.Fprintf(os.Stdout, "%s\n", usage)
+		_, _ = fmt.Fprintf(os.Stdout, "%s\n", usage)
 		os.Exit(0)
 	}
 
 	if hasFlag(args, "-version") {
-		fmt.Fprintf(os.Stdout, "logwrap version %s\n", version)
+		_, _ = fmt.Fprintf(os.Stdout, "logwrap version %s\n", version)
 		os.Exit(0)
 	}
 
@@ -103,7 +108,7 @@ func parseArgs(args []string) ([]string, []string, error) {
 
 			if arg == "-config" || arg == "-template" || arg == "-format" {
 				if i+1 >= len(args) {
-					return nil, nil, fmt.Errorf("option %s requires a value", arg)
+					return nil, nil, fmt.Errorf("%w: %s", errors.ErrOptionRequiresValue, arg)
 				}
 				i++
 				configArgs = append(configArgs, args[i])
@@ -120,12 +125,7 @@ func parseArgs(args []string) ([]string, []string, error) {
 }
 
 func hasFlag(args []string, flag string) bool {
-	for _, arg := range args {
-		if arg == flag {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(args, flag)
 }
 
 func getConfigFile(args []string) string {
@@ -156,9 +156,10 @@ func run(cfg *config.Config, command []string) error {
 
 	stdout, stderr := exec.GetStreams()
 
+	ctx := context.Background()
 	processingDone := make(chan error, 1)
 	go func() {
-		processingDone <- proc.ProcessStreams(stdout, stderr)
+		processingDone <- proc.ProcessStreams(ctx, stdout, stderr)
 	}()
 
 	if err := exec.Wait(); err != nil {

@@ -1,3 +1,4 @@
+// Package formatter provides log line formatting functionality.
 package formatter
 
 import (
@@ -14,10 +15,12 @@ import (
 	"github.com/sgaunet/logwrap/pkg/processor"
 )
 
+// Formatter defines the interface for formatting log lines.
 type Formatter interface {
 	FormatLine(line string, streamType processor.StreamType) string
 }
 
+// DefaultFormatter provides the default implementation of log line formatting.
 type DefaultFormatter struct {
 	config     *config.Config
 	template   *template.Template
@@ -27,6 +30,7 @@ type DefaultFormatter struct {
 	levelCache map[string]string
 }
 
+// TemplateData contains the data available for template rendering.
 type TemplateData struct {
 	Timestamp string
 	Level     string
@@ -35,7 +39,8 @@ type TemplateData struct {
 	Line      string
 }
 
-func New(cfg *config.Config) (Formatter, error) {
+// New creates a new DefaultFormatter with the given configuration.
+func New(cfg *config.Config) (*DefaultFormatter, error) {
 	tmpl, err := template.New("prefix").Parse(cfg.Prefix.Template)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse template: %w", err)
@@ -66,6 +71,7 @@ func New(cfg *config.Config) (Formatter, error) {
 	}, nil
 }
 
+// FormatLine formats a log line according to the configured output format.
 func (f *DefaultFormatter) FormatLine(line string, streamType processor.StreamType) string {
 	if line == "" {
 		return line

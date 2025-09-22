@@ -1,3 +1,4 @@
+// Package config provides configuration management for the logwrap application.
 package config
 
 import (
@@ -5,17 +6,21 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/sgaunet/logwrap/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
 
+// Config represents the complete configuration for logwrap.
 type Config struct {
 	Prefix   PrefixConfig   `yaml:"prefix"`
 	Output   OutputConfig   `yaml:"output"`
 	LogLevel LogLevelConfig `yaml:"log_level"`
 }
 
+// PrefixConfig contains configuration for log prefixes.
 type PrefixConfig struct {
 	Template  string          `yaml:"template"`
 	Timestamp TimestampConfig `yaml:"timestamp"`
@@ -24,11 +29,13 @@ type PrefixConfig struct {
 	PID       PIDConfig       `yaml:"pid"`
 }
 
+// TimestampConfig contains timestamp formatting configuration.
 type TimestampConfig struct {
 	Format string `yaml:"format"`
 	UTC    bool   `yaml:"utc"`
 }
 
+// ColorsConfig contains color configuration for output.
 type ColorsConfig struct {
 	Enabled   bool   `yaml:"enabled"`
 	Info      string `yaml:"info"`
@@ -36,32 +43,38 @@ type ColorsConfig struct {
 	Timestamp string `yaml:"timestamp"`
 }
 
+// UserConfig contains user information configuration.
 type UserConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	Format  string `yaml:"format"`
 }
 
+// PIDConfig contains process ID configuration.
 type PIDConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	Format  string `yaml:"format"`
 }
 
+// OutputConfig contains output formatting configuration.
 type OutputConfig struct {
 	Format string `yaml:"format"`
 	Buffer string `yaml:"buffer"`
 }
 
+// LogLevelConfig contains log level detection configuration.
 type LogLevelConfig struct {
 	DefaultStdout string              `yaml:"default_stdout"`
 	DefaultStderr string              `yaml:"default_stderr"`
 	Detection     DetectionConfig     `yaml:"detection"`
 }
 
+// DetectionConfig contains configuration for automatic log level detection.
 type DetectionConfig struct {
 	Enabled  bool                `yaml:"enabled"`
 	Keywords map[string][]string `yaml:"keywords"`
 }
 
+// CLIFlags contains parsed command line flags.
 type CLIFlags struct {
 	ConfigFile    *string
 	Template      *string
@@ -74,6 +87,7 @@ type CLIFlags struct {
 	Version       *bool
 }
 
+// LoadConfig loads configuration from file and applies CLI overrides.
 func LoadConfig(configFile string, args []string) (*Config, error) {
 	config := getDefaultConfig()
 
@@ -141,7 +155,12 @@ func getDefaultConfig() *Config {
 }
 
 func loadConfigFile(config *Config, configFile string) error {
-	data, err := os.ReadFile(configFile)
+	// #nosec G304 - configFile is validated or comes from trusted sources
+	if err := validateConfigPath(configFile); err != nil {
+		return fmt.Errorf("invalid config file path: %w", err)
+	}
+
+	data, err := os.ReadFile(configFile) // #nosec G304 - path is validated above
 	if err != nil {
 		return fmt.Errorf("failed to read config file %s: %w", configFile, err)
 	}
@@ -168,7 +187,7 @@ func parseCLIFlags(args []string) (*CLIFlags, error) {
 	flags.Version = fs.Bool("version", false, "Show version")
 
 	if err := fs.Parse(args); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse flags: %w", err)
 	}
 
 	return flags, nil
@@ -195,6 +214,7 @@ func applyCLIOverrides(config *Config, flags *CLIFlags) {
 	}
 }
 
+// FindConfigFile searches for configuration files in standard locations.
 func FindConfigFile() string {
 	candidates := []string{
 		"logwrap.yaml",
@@ -220,4 +240,20 @@ func FindConfigFile() string {
 	}
 
 	return ""
+}
+
+func validateConfigPath(configFile string) error {
+	// Prevent path traversal attacks
+	cleaned := filepath.Clean(configFile)
+	if strings.Contains(cleaned, "..") {
+		return errors.ErrPathTraversal
+	}
+
+	// Only allow .yaml, .yml files
+	ext := strings.ToLower(filepath.Ext(cleaned))
+	if ext != ".yaml" && ext != ".yml" {
+		return errors.ErrInvalidFileType
+	}
+
+	return nil
 }
