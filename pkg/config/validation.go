@@ -174,12 +174,20 @@ func (c *Config) validateLogLevel() error {
 }
 
 func isValidLogLevel(level string, validLevels []string) bool {
-	levelUpper := strings.ToUpper(level)
+	// Check for exact uppercase match
 	for _, valid := range validLevels {
-		if levelUpper == valid {
+		if level == valid {
 			return true
 		}
 	}
+
+	// Check for exact lowercase match
+	for _, valid := range validLevels {
+		if level == strings.ToLower(valid) {
+			return true
+		}
+	}
+
 	return false
 }
 

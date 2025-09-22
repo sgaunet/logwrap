@@ -8,6 +8,7 @@ import (
 	"os/user"
 	"strconv"
 	"strings"
+	"sync"
 	"text/template"
 	"time"
 
@@ -28,6 +29,7 @@ type DefaultFormatter struct {
 	pid        int
 	colors     map[string]string
 	levelCache map[string]string
+	mutex      sync.RWMutex
 }
 
 // TemplateData contains the data available for template rendering.
@@ -154,9 +156,12 @@ func (f *DefaultFormatter) getLogLevel(line string, streamType processor.StreamT
 		return f.config.LogLevel.DefaultStderr
 	}
 
+	f.mutex.RLock()
 	if cached, exists := f.levelCache[line]; exists {
+		f.mutex.RUnlock()
 		return cached
 	}
+	f.mutex.RUnlock()
 
 	lineUpper := strings.ToUpper(line)
 
@@ -164,7 +169,9 @@ func (f *DefaultFormatter) getLogLevel(line string, streamType processor.StreamT
 		for _, keyword := range keywords {
 			if strings.Contains(lineUpper, strings.ToUpper(keyword)) {
 				level = strings.ToUpper(level)
+				f.mutex.Lock()
 				f.levelCache[line] = level
+				f.mutex.Unlock()
 				return level
 			}
 		}
@@ -177,7 +184,9 @@ func (f *DefaultFormatter) getLogLevel(line string, streamType processor.StreamT
 		defaultLevel = f.config.LogLevel.DefaultStderr
 	}
 
+	f.mutex.Lock()
 	f.levelCache[line] = defaultLevel
+	f.mutex.Unlock()
 	return defaultLevel
 }
 
