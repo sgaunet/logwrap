@@ -36,7 +36,7 @@ Options:
 Examples:
   logwrap echo "Hello World"
   logwrap -config myconfig.yaml make build
-  logwrap -template "[{timestamp}] " ls -la
+  logwrap -template "[{{.Timestamp}}] [{{.Level}}] [{{.User}}:{{.PID}}]  " ls -la
   logwrap -- sh -c "echo stdout; echo stderr >&2"
 
 Configuration:
