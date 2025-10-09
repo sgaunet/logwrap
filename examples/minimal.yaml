@@ -1,0 +1,22 @@
+# Minimal LogWrap Configuration Example
+
+prefix:
+  template: "[{{.Timestamp}}] "
+  timestamp:
+    format: "15:04:05"
+  colors:
+    enabled: false
+  user:
+    enabled: false
+  pid:
+    enabled: false
+
+output:
+  format: "text"
+  buffer: "line"
+
+log_level:
+  default_stdout: "INFO"
+  default_stderr: "ERROR"
+  detection:
+    enabled: false

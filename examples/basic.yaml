@@ -1,0 +1,33 @@
+# Basic LogWrap Configuration Example
+
+prefix:
+  template: "[{{.Timestamp}}] [{{.Level}}] [{{.User}}:{{.PID}}] "
+  timestamp:
+    format: "2006-01-02 15:04:05"
+    utc: false
+  colors:
+    enabled: false
+    info: "green"
+    error: "red"
+    timestamp: "blue"
+  user:
+    enabled: true
+    format: "username"
+  pid:
+    enabled: true
+    format: "decimal"
+
+output:
+  format: "text"
+  buffer: "line"
+
+log_level:
+  default_stdout: "INFO"
+  default_stderr: "ERROR"
+  detection:
+    enabled: true
+    keywords:
+      error: ["ERROR", "FATAL", "PANIC", "error:", "Error:", "ERROR:"]
+      warn: ["WARN", "WARNING", "warn:", "Warn:", "WARN:", "WARNING:"]
+      debug: ["DEBUG", "TRACE", "debug:", "Debug:", "DEBUG:", "TRACE:"]
+      info: ["INFO", "info:", "Info:", "INFO:"]
