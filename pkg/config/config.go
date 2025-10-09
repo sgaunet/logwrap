@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/sgaunet/logwrap/pkg/errors"
 	"gopkg.in/yaml.v3"
@@ -114,7 +113,7 @@ func getDefaultConfig() *Config {
 		Prefix: PrefixConfig{
 			Template: "[{{.Timestamp}}] [{{.Level}}] [{{.User}}:{{.PID}}] ",
 			Timestamp: TimestampConfig{
-				Format: time.RFC3339,
+				Format: "%Y-%m-%dT%H:%M:%S%z", // RFC3339-like format using strftime
 				UTC:    false,
 			},
 			Colors: ColorsConfig{

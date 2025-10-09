@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/itchyny/timefmt-go"
 	"github.com/sgaunet/logwrap/pkg/errors"
 )
 
@@ -54,9 +55,12 @@ func (c *Config) validateTimestamp() error {
 		return errors.ErrTimestampFormatEmpty
 	}
 
-	_, err := time.Parse(c.Prefix.Timestamp.Format, time.Now().Format(c.Prefix.Timestamp.Format))
+	// Validate strftime format by attempting to format and parse
+	now := time.Now()
+	formatted := timefmt.Format(now, c.Prefix.Timestamp.Format)
+	_, err := timefmt.Parse(formatted, c.Prefix.Timestamp.Format)
 	if err != nil {
-		return fmt.Errorf("invalid timestamp format '%s': %w", c.Prefix.Timestamp.Format, err)
+		return fmt.Errorf("invalid strftime format '%s': %w", c.Prefix.Timestamp.Format, err)
 	}
 
 	return nil

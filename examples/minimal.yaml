@@ -4,7 +4,8 @@
 prefix:
   template: "[{{.Timestamp}}] "
   timestamp:
-    format: "15:04:05"
+    # strftime format: %H=hour, %M=minute, %S=second
+    format: "%H:%M:%S"
   colors:
     enabled: false
   # Disable user and PID to minimize prefix overhead

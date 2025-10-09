@@ -12,6 +12,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/itchyny/timefmt-go"
 	"github.com/sgaunet/logwrap/pkg/config"
 	"github.com/sgaunet/logwrap/pkg/processor"
 )
@@ -145,7 +146,7 @@ func (f *DefaultFormatter) getTimestamp() string {
 	if f.config.Prefix.Timestamp.UTC {
 		now = now.UTC()
 	}
-	return now.Format(f.config.Prefix.Timestamp.Format)
+	return timefmt.Format(now, f.config.Prefix.Timestamp.Format)
 }
 
 func (f *DefaultFormatter) getLogLevel(line string, streamType processor.StreamType) string {

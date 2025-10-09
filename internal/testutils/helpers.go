@@ -178,7 +178,7 @@ func ValidYAMLConfig() string {
 prefix:
   template: "[{{.Timestamp}}] [{{.Level}}] "
   timestamp:
-    format: "2006-01-02 15:04:05"
+    format: "%Y-%m-%d %H:%M:%S"
     utc: false
   colors:
     enabled: false
@@ -212,7 +212,7 @@ func InvalidYAMLConfig() string {
 prefix:
   template: "[{{.Timestamp}}] [{{.Level}}] "
   timestamp:
-    format: "2006-01-02 15:04:05"
+    format: "%Y-%m-%d %H:%M:%S"
     utc: invalid_boolean
 `
 }

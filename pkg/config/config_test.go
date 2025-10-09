@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/sgaunet/logwrap/internal/testutils"
 	"github.com/stretchr/testify/assert"
@@ -21,7 +20,7 @@ func TestLoadConfig_DefaultConfig(t *testing.T) {
 
 	// Verify default values
 	assert.Equal(t, "[{{.Timestamp}}] [{{.Level}}] [{{.User}}:{{.PID}}] ", cfg.Prefix.Template)
-	assert.Equal(t, time.RFC3339, cfg.Prefix.Timestamp.Format)
+	assert.Equal(t, "%Y-%m-%dT%H:%M:%S%z", cfg.Prefix.Timestamp.Format)
 	assert.False(t, cfg.Prefix.Timestamp.UTC)
 	assert.False(t, cfg.Prefix.Colors.Enabled)
 	assert.Equal(t, "green", cfg.Prefix.Colors.Info)
@@ -50,7 +49,7 @@ func TestLoadConfig_WithValidConfigFile(t *testing.T) {
 
 	// Verify loaded values
 	assert.Equal(t, "[{{.Timestamp}}] [{{.Level}}] ", cfg.Prefix.Template)
-	assert.Equal(t, "2006-01-02 15:04:05", cfg.Prefix.Timestamp.Format)
+	assert.Equal(t, "%Y-%m-%d %H:%M:%S", cfg.Prefix.Timestamp.Format)
 	assert.False(t, cfg.Prefix.Timestamp.UTC)
 	assert.False(t, cfg.Prefix.Colors.Enabled)
 	assert.True(t, cfg.Prefix.User.Enabled)
@@ -406,7 +405,7 @@ func TestGetDefaultConfig(t *testing.T) {
 
 	// Test all default values are set correctly
 	assert.Equal(t, "[{{.Timestamp}}] [{{.Level}}] [{{.User}}:{{.PID}}] ", cfg.Prefix.Template)
-	assert.Equal(t, time.RFC3339, cfg.Prefix.Timestamp.Format)
+	assert.Equal(t, "%Y-%m-%dT%H:%M:%S%z", cfg.Prefix.Timestamp.Format)
 	assert.False(t, cfg.Prefix.Timestamp.UTC)
 	assert.False(t, cfg.Prefix.Colors.Enabled)
 	assert.Equal(t, "green", cfg.Prefix.Colors.Info)

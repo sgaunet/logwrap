@@ -32,10 +32,24 @@ Options:
   -version            Show version information
 
 Template Variables:
-  {{.Timestamp}}      Current timestamp
+  {{.Timestamp}}      Current timestamp (formatted using strftime format in config)
   {{.Level}}          Log level (INFO, ERROR, etc.)
   {{.User}}           Username (controlled via config file)
   {{.PID}}            Process ID (controlled via config file)
+
+Timestamp Format (strftime):
+  Uses Linux date command format (not Go time format)
+  Common directives:
+    %Y  Year (2024)          %m  Month (01-12)       %d  Day (01-31)
+    %H  Hour 24h (00-23)     %M  Minute (00-59)      %S  Second (00-59)
+    %a  Weekday short (Mon)  %A  Weekday full (Monday)
+    %b  Month short (Jan)    %B  Month full (January)
+    %z  Timezone offset      %f  Microseconds
+
+  Example formats:
+    %Y-%m-%d %H:%M:%S       → 2024-01-15 14:30:45
+    %d/%b/%Y %H:%M          → 15/Jan/2024 14:30
+    %Y-%m-%dT%H:%M:%S%z     → 2024-01-15T14:30:45-0700
 
 Examples:
   logwrap echo "Hello World"

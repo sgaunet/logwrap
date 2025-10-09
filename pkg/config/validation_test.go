@@ -2,7 +2,6 @@ package config
 
 import (
 	"testing"
-	"time"
 
 	"github.com/sgaunet/logwrap/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -41,13 +40,13 @@ func TestConfig_ValidateTimestamp(t *testing.T) {
 		errorMessage string
 	}{
 		{
-			name:        "valid RFC3339 format",
-			format:      time.RFC3339,
+			name:        "valid RFC3339-like strftime format",
+			format:      "%Y-%m-%dT%H:%M:%S%z",
 			expectError: false,
 		},
 		{
-			name:        "valid custom format",
-			format:      "2006-01-02 15:04:05",
+			name:        "valid custom strftime format",
+			format:      "%Y-%m-%d %H:%M:%S",
 			expectError: false,
 		},
 		{

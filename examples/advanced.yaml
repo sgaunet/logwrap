@@ -4,7 +4,10 @@
 prefix:
   template: "[{{.Timestamp}}] [{{.Level}}] [{{.User}}:{{.PID}}] "
   timestamp:
-    format: "2006-01-02T15:04:05.000Z"
+    # strftime format with microseconds (%f) and timezone (%z)
+    # Common directives: %Y=year, %m=month, %d=day, %H=hour, %M=minute, %S=second
+    # Extended: %f=microseconds, %z=timezone offset, %a=weekday, %b=month name
+    format: "%Y-%m-%dT%H:%M:%S.%f%z"
     utc: true
   colors:
     enabled: true
