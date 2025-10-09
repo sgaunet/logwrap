@@ -80,8 +80,6 @@ type CLIFlags struct {
 	Template      *string
 	TimestampUTC  *bool
 	ColorsEnabled *bool
-	UserEnabled   *bool
-	PIDEnabled    *bool
 	OutputFormat  *string
 	Help          *bool
 	Version       *bool
@@ -180,8 +178,6 @@ func parseCLIFlags(args []string) (*CLIFlags, error) {
 	flags.Template = fs.String("template", "", "Log prefix template")
 	flags.TimestampUTC = fs.Bool("utc", false, "Use UTC timestamps")
 	flags.ColorsEnabled = fs.Bool("colors", false, "Enable colored output")
-	flags.UserEnabled = fs.Bool("user", true, "Include user in prefix")
-	flags.PIDEnabled = fs.Bool("pid", true, "Include PID in prefix")
 	flags.OutputFormat = fs.String("format", "", "Output format (text, json, structured)")
 	flags.Help = fs.Bool("help", false, "Show help")
 	flags.Version = fs.Bool("version", false, "Show version")
@@ -202,12 +198,6 @@ func applyCLIOverrides(config *Config, flags *CLIFlags) {
 	}
 	if flags.ColorsEnabled != nil {
 		config.Prefix.Colors.Enabled = *flags.ColorsEnabled
-	}
-	if flags.UserEnabled != nil {
-		config.Prefix.User.Enabled = *flags.UserEnabled
-	}
-	if flags.PIDEnabled != nil {
-		config.Prefix.PID.Enabled = *flags.PIDEnabled
 	}
 	if flags.OutputFormat != nil && *flags.OutputFormat != "" {
 		config.Output.Format = *flags.OutputFormat

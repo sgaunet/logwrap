@@ -444,16 +444,12 @@ func TestApplyCLIOverrides(t *testing.T) {
 	template := "[{{.Level}}] "
 	utc := true
 	colors := true
-	userEnabled := false
-	pidEnabled := false
 	format := "json"
 
 	flags := &CLIFlags{
 		Template:      &template,
 		TimestampUTC:  &utc,
 		ColorsEnabled: &colors,
-		UserEnabled:   &userEnabled,
-		PIDEnabled:    &pidEnabled,
 		OutputFormat:  &format,
 	}
 
@@ -464,8 +460,6 @@ func TestApplyCLIOverrides(t *testing.T) {
 	assert.Equal(t, template, cfg.Prefix.Template)
 	assert.True(t, cfg.Prefix.Timestamp.UTC)
 	assert.True(t, cfg.Prefix.Colors.Enabled)
-	assert.False(t, cfg.Prefix.User.Enabled)
-	assert.False(t, cfg.Prefix.PID.Enabled)
 	assert.Equal(t, format, cfg.Output.Format)
 
 	// Test that nil values don't override
@@ -478,6 +472,9 @@ func TestApplyCLIOverrides(t *testing.T) {
 	assert.Equal(t, originalTemplate, cfg2.Prefix.Template)
 	assert.False(t, cfg2.Prefix.Timestamp.UTC)
 	assert.False(t, cfg2.Prefix.Colors.Enabled)
+	// User and PID should still be enabled (default)
+	assert.True(t, cfg2.Prefix.User.Enabled)
+	assert.True(t, cfg2.Prefix.PID.Enabled)
 
 	// Test empty string values don't override
 	cfg3 := getDefaultConfig()

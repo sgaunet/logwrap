@@ -25,19 +25,24 @@ Usage:
 Options:
   -config string      Configuration file path
   -template string    Log prefix template (default "[{{.Timestamp}}] [{{.Level}}] [{{.User}}:{{.PID}}] ")
-  -utc                Use UTC timestamps
+  -utc                Use UTC timestamps (default false)
   -colors             Enable colored output (default false)
-  -user               Include user in prefix (default true)
-  -pid                Include PID in prefix (default true)
-  -format string      Prefix output format: text, json, structured (default "text")
+  -format string      Output format: text, json, structured (default "text")
   -help               Show this help message
   -version            Show version information
+
+Template Variables:
+  {{.Timestamp}}      Current timestamp
+  {{.Level}}          Log level (INFO, ERROR, etc.)
+  {{.User}}           Username (controlled via config file)
+  {{.PID}}            Process ID (controlled via config file)
 
 Examples:
   logwrap echo "Hello World"
   logwrap -config myconfig.yaml make build
-  logwrap -template "[{{.Timestamp}}] [{{.Level}}] [{{.User}}:{{.PID}}]  " ls -la
-  logwrap -- sh -c "echo stdout; echo stderr >&2"
+  logwrap -utc -colors make test
+  logwrap -template "[{{.Timestamp}}] " ls -la
+  logwrap -template "[{{.Level}}] [{{.User}}:{{.PID}}] " -- sh -c "echo stdout; echo stderr >&2"
 
 Configuration:
   LogWrap looks for configuration files in the following order:
@@ -45,6 +50,8 @@ Configuration:
   2. ./logwrap.yaml or ./logwrap.yml
   3. ~/.config/logwrap/config.yaml
   4. ~/.logwrap.yaml
+
+  To control user/PID inclusion, use a config file or customize the -template flag.
 
 For more information, visit: https://github.com/sgaunet/logwrap`
 )

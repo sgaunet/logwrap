@@ -1,4 +1,5 @@
 # Minimal LogWrap Configuration Example
+# This configuration shows the simplest setup with only timestamps
 
 prefix:
   template: "[{{.Timestamp}}] "
@@ -6,6 +7,8 @@ prefix:
     format: "15:04:05"
   colors:
     enabled: false
+  # Disable user and PID to minimize prefix overhead
+  # Alternatively, simply remove {{.User}} and {{.PID}} from the template
   user:
     enabled: false
   pid:

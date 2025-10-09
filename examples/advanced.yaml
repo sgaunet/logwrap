@@ -1,4 +1,5 @@
 # Advanced LogWrap Configuration Example
+# This configuration demonstrates all available features with custom settings
 
 prefix:
   template: "[{{.Timestamp}}] [{{.Level}}] [{{.User}}:{{.PID}}] "
@@ -10,12 +11,14 @@ prefix:
     info: "cyan"
     error: "red"
     timestamp: "blue"
+  # User and PID settings only affect template variable expansion
+  # To exclude them entirely, remove {{.User}} and {{.PID}} from the template
   user:
     enabled: true
-    format: "full"  # username(uid)
+    format: "full"  # Options: username, uid, full (shows username(uid))
   pid:
     enabled: true
-    format: "hex"
+    format: "hex"   # Options: decimal, hex
 
 output:
   format: "text"

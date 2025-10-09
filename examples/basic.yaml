@@ -10,12 +10,14 @@ prefix:
     info: "green"
     error: "red"
     timestamp: "blue"
+  # User and PID can be controlled via config file or by removing them from the template
+  # No CLI flags exist for these - use -template flag to customize output format
   user:
-    enabled: true
-    format: "username"
+    enabled: true    # When enabled, {{.User}} in template will be replaced with username
+    format: "username"  # Options: username, uid, full
   pid:
-    enabled: true
-    format: "decimal"
+    enabled: true    # When enabled, {{.PID}} in template will be replaced with process ID
+    format: "decimal"   # Options: decimal, hex
 
 output:
   format: "text"
