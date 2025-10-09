@@ -1,0 +1,76 @@
+# Advanced LogWrap Configuration Example
+# This configuration demonstrates all available features with custom settings
+
+prefix:
+  template: "[{{.Timestamp}}] [{{.Level}}] [{{.User}}:{{.PID}}] "
+  timestamp:
+    # strftime format with microseconds (%f) and timezone (%z)
+    # Common directives: %Y=year, %m=month, %d=day, %H=hour, %M=minute, %S=second
+    # Extended: %f=microseconds, %z=timezone offset, %a=weekday, %b=month name
+    format: "%Y-%m-%dT%H:%M:%S.%f%z"
+    utc: true
+  colors:
+    enabled: true
+    info: "cyan"
+    error: "red"
+    timestamp: "blue"
+  # User and PID settings only affect template variable expansion
+  # To exclude them entirely, remove {{.User}} and {{.PID}} from the template
+  user:
+    enabled: true
+    format: "full"  # Options: username, uid, full (shows username(uid))
+  pid:
+    enabled: true
+    format: "hex"   # Options: decimal, hex
+
+output:
+  format: "text"
+  buffer: "line"
+
+log_level:
+  default_stdout: "INFO"
+  default_stderr: "ERROR"
+  detection:
+    enabled: true
+    keywords:
+      error:
+        - "ERROR"
+        - "FATAL"
+        - "PANIC"
+        - "error:"
+        - "Error:"
+        - "ERROR:"
+        - "Failed"
+        - "failed"
+        - "FAILED"
+        - "Exception"
+        - "EXCEPTION"
+      warn:
+        - "WARN"
+        - "WARNING"
+        - "warn:"
+        - "Warn:"
+        - "WARN:"
+        - "WARNING:"
+        - "deprecated"
+        - "DEPRECATED"
+      debug:
+        - "DEBUG"
+        - "TRACE"
+        - "debug:"
+        - "Debug:"
+        - "DEBUG:"
+        - "TRACE:"
+        - "trace:"
+        - "Trace:"
+      info:
+        - "INFO"
+        - "info:"
+        - "Info:"
+        - "INFO:"
+        - "Starting"
+        - "started"
+        - "STARTED"
+        - "Finished"
+        - "finished"
+        - "FINISHED"

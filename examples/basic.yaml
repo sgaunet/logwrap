@@ -1,0 +1,37 @@
+# Basic LogWrap Configuration Example
+
+prefix:
+  template: "[{{.Timestamp}}] [{{.Level}}] [{{.User}}:{{.PID}}] "
+  timestamp:
+    # strftime format (like Linux date command)
+    # %Y=year, %m=month, %d=day, %H=hour (24h), %M=minute, %S=second
+    format: "%Y-%m-%d %H:%M:%S"
+    utc: false
+  colors:
+    enabled: false
+    info: "green"
+    error: "red"
+    timestamp: "blue"
+  # User and PID can be controlled via config file or by removing them from the template
+  # No CLI flags exist for these - use -template flag to customize output format
+  user:
+    enabled: true    # When enabled, {{.User}} in template will be replaced with username
+    format: "username"  # Options: username, uid, full
+  pid:
+    enabled: true    # When enabled, {{.PID}} in template will be replaced with process ID
+    format: "decimal"   # Options: decimal, hex
+
+output:
+  format: "text"
+  buffer: "line"
+
+log_level:
+  default_stdout: "INFO"
+  default_stderr: "ERROR"
+  detection:
+    enabled: true
+    keywords:
+      error: ["ERROR", "FATAL", "PANIC", "error:", "Error:", "ERROR:"]
+      warn: ["WARN", "WARNING", "warn:", "Warn:", "WARN:", "WARNING:"]
+      debug: ["DEBUG", "TRACE", "debug:", "Debug:", "DEBUG:", "TRACE:"]
+      info: ["INFO", "info:", "Info:", "INFO:"]

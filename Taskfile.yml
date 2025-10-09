@@ -1,0 +1,50 @@
+# https://taskfile.dev
+version: '3'
+vars:
+  BINFILE: logwrap
+
+tasks:
+
+  default:
+    desc: "List tasks"
+    cmds:
+      - task -a
+
+  linter:
+    desc: "Run linter"
+    cmds:
+      - golangci-lint run
+
+  test:
+    desc: "Run all tests"
+    cmds:
+      - go test ./... -v
+
+  test-coverage:
+    desc: "Run tests with coverage report"
+    cmds:
+      - go test ./... -coverprofile=coverage.out
+      - go tool cover -html=coverage.out -o coverage.html
+      - echo "Coverage report generated at coverage.html"
+
+  test-race:
+    desc: "Run tests with race detection"
+    cmds:
+      - go test ./... -race -v
+
+  build:
+    desc: "Build binary"
+    cmds:
+      - CGO_ENABLED=0 go build -o {{ .BINFILE }} cmd/logwrap/*.go
+    # silent: true
+
+  snapshot:
+    desc: "Create snapshot"
+    cmds:
+      - GITLAB_TOKEN="" goreleaser --clean --snapshot
+    
+  release:
+    desc: "Create release"
+    cmds:
+      - GITLAB_TOKEN="" goreleaser --clean --skip validate
+    

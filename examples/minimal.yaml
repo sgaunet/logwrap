@@ -1,0 +1,26 @@
+# Minimal LogWrap Configuration Example
+# This configuration shows the simplest setup with only timestamps
+
+prefix:
+  template: "[{{.Timestamp}}] "
+  timestamp:
+    # strftime format: %H=hour, %M=minute, %S=second
+    format: "%H:%M:%S"
+  colors:
+    enabled: false
+  # Disable user and PID to minimize prefix overhead
+  # Alternatively, simply remove {{.User}} and {{.PID}} from the template
+  user:
+    enabled: false
+  pid:
+    enabled: false
+
+output:
+  format: "text"
+  buffer: "line"
+
+log_level:
+  default_stdout: "INFO"
+  default_stderr: "ERROR"
+  detection:
+    enabled: false
