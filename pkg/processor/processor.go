@@ -4,12 +4,14 @@ package processor
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"os"
 	"sync"
 	"time"
 
-	"github.com/sgaunet/logwrap/pkg/errors"
+	pkgerrors "github.com/sgaunet/logwrap/pkg/errors"
 )
 
 // StreamType represents the type of stream (stdout or stderr).
@@ -79,7 +81,7 @@ func New(formatter Formatter, output io.Writer, opts ...Option) *Processor {
 // ProcessStreams processes both stdout and stderr streams concurrently.
 func (p *Processor) ProcessStreams(ctx context.Context, stdout, stderr io.Reader) error {
 	if stdout == nil || stderr == nil {
-		return errors.ErrReadersNil
+		return pkgerrors.ErrReadersNil
 	}
 
 	const streamCount = 2
@@ -102,7 +104,7 @@ func (p *Processor) ProcessStreams(ctx context.Context, stdout, stderr io.Reader
 	p.wg.Wait()
 
 	if len(p.errors) > 0 {
-		return fmt.Errorf("%w: %v", errors.ErrProcessingErrors, p.errors)
+		return fmt.Errorf("%w: %v", pkgerrors.ErrProcessingErrors, p.errors)
 	}
 
 	return nil
@@ -129,7 +131,7 @@ func (p *Processor) Wait(timeout time.Duration) error {
 		return nil
 	case <-time.After(timeout):
 		p.Stop()
-		return fmt.Errorf("%w after %v", errors.ErrProcessorTimeout, timeout)
+		return fmt.Errorf("%w after %v", pkgerrors.ErrProcessorTimeout, timeout)
 	}
 }
 
@@ -170,7 +172,13 @@ func (p *Processor) processStream(ctx context.Context, stream io.Reader, streamT
 	}
 
 	if err := scanner.Err(); err != nil {
-		if err.Error() == "read |0: file already closed" {
+		// Handle expected errors during stream closure
+		if errors.Is(err, io.EOF) || errors.Is(err, os.ErrClosed) {
+			return nil
+		}
+		// Check for closed pipe error (PathError wrapping)
+		var pathErr *os.PathError
+		if errors.As(err, &pathErr) && errors.Is(pathErr.Err, os.ErrClosed) {
 			return nil
 		}
 		return fmt.Errorf("scanner error for %s: %w", streamType.String(), err)
