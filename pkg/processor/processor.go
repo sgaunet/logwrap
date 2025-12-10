@@ -48,6 +48,7 @@ type Processor struct {
 	errors    []error
 	mutex     sync.Mutex
 	cancel    context.CancelFunc
+	stopOnce  sync.Once
 }
 
 // Option defines a function that configures a Processor.
@@ -111,10 +112,13 @@ func (p *Processor) ProcessStreams(ctx context.Context, stdout, stderr io.Reader
 }
 
 // Stop cancels the processor context to stop stream processing.
+// Safe to call multiple times - subsequent calls are no-ops.
 func (p *Processor) Stop() {
-	if p.cancel != nil {
-		p.cancel()
-	}
+	p.stopOnce.Do(func() {
+		if p.cancel != nil {
+			p.cancel()
+		}
+	})
 }
 
 // Wait waits for stream processing to complete with a timeout.
