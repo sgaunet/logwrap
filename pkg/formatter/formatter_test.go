@@ -62,7 +62,6 @@ func TestNew_Success(t *testing.T) {
 	assert.NotNil(t, formatter.template)
 	assert.NotNil(t, formatter.userInfo)
 	assert.NotZero(t, formatter.pid)
-	assert.NotNil(t, formatter.levelCache)
 }
 
 func TestNew_InvalidTemplate(t *testing.T) {
@@ -386,7 +385,7 @@ func TestGetLogLevel(t *testing.T) {
 		},
 		{
 			name:       "DEBUG keyword detection",
-			line:       "DEBUG: debugging info",
+			line:       "DEBUG: debugging message",
 			streamType: processor.StreamStdout,
 			expected:   "DEBUG",
 		},
@@ -424,38 +423,6 @@ func TestGetLogLevel(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
-}
-
-func TestGetLogLevel_Caching(t *testing.T) {
-	t.Parallel()
-
-	cfg := &config.Config{
-		LogLevel: config.LogLevelConfig{
-			DefaultStdout: "INFO",
-			Detection: config.DetectionConfig{
-				Enabled: true,
-				Keywords: map[string][]string{
-					"error": {"ERROR"},
-				},
-			},
-		},
-	}
-
-	formatter, err := New(cfg)
-	require.NoError(t, err)
-
-	line := "ERROR: test message"
-
-	// First call should cache the result
-	result1 := formatter.getLogLevel(line, processor.StreamStdout)
-	assert.Equal(t, "ERROR", result1)
-
-	// Second call should use cache
-	result2 := formatter.getLogLevel(line, processor.StreamStdout)
-	assert.Equal(t, "ERROR", result2)
-
-	// Verify cache was used (both calls return the same result)
-	assert.Equal(t, result1, result2)
 }
 
 func TestGetLogLevel_DetectionDisabled(t *testing.T) {

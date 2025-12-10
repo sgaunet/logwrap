@@ -8,7 +8,6 @@ import (
 	"os/user"
 	"strconv"
 	"strings"
-	"sync"
 	"text/template"
 	"time"
 
@@ -24,13 +23,11 @@ type Formatter interface {
 
 // DefaultFormatter provides the default implementation of log line formatting.
 type DefaultFormatter struct {
-	config     *config.Config
-	template   *template.Template
-	userInfo   *user.User
-	pid        int
-	colors     map[string]string
-	levelCache map[string]string
-	mutex      sync.RWMutex
+	config   *config.Config
+	template *template.Template
+	userInfo *user.User
+	pid      int
+	colors   map[string]string
 }
 
 // TemplateData contains the data available for template rendering.
@@ -65,12 +62,11 @@ func New(cfg *config.Config) (*DefaultFormatter, error) {
 	}
 
 	return &DefaultFormatter{
-		config:     cfg,
-		template:   tmpl,
-		userInfo:   userInfo,
-		pid:        os.Getpid(),
-		colors:     colors,
-		levelCache: make(map[string]string),
+		config:   cfg,
+		template: tmpl,
+		userInfo: userInfo,
+		pid:      os.Getpid(),
+		colors:   colors,
 	}, nil
 }
 
@@ -157,38 +153,20 @@ func (f *DefaultFormatter) getLogLevel(line string, streamType processor.StreamT
 		return f.config.LogLevel.DefaultStderr
 	}
 
-	f.mutex.RLock()
-	if cached, exists := f.levelCache[line]; exists {
-		f.mutex.RUnlock()
-		return cached
-	}
-	f.mutex.RUnlock()
-
 	lineUpper := strings.ToUpper(line)
 
 	for level, keywords := range f.config.LogLevel.Detection.Keywords {
 		for _, keyword := range keywords {
 			if strings.Contains(lineUpper, strings.ToUpper(keyword)) {
-				level = strings.ToUpper(level)
-				f.mutex.Lock()
-				f.levelCache[line] = level
-				f.mutex.Unlock()
-				return level
+				return strings.ToUpper(level)
 			}
 		}
 	}
 
-	var defaultLevel string
 	if streamType == processor.StreamStdout {
-		defaultLevel = f.config.LogLevel.DefaultStdout
-	} else {
-		defaultLevel = f.config.LogLevel.DefaultStderr
+		return f.config.LogLevel.DefaultStdout
 	}
-
-	f.mutex.Lock()
-	f.levelCache[line] = defaultLevel
-	f.mutex.Unlock()
-	return defaultLevel
+	return f.config.LogLevel.DefaultStderr
 }
 
 func (f *DefaultFormatter) getUserString() string {
