@@ -555,3 +555,495 @@ func TestConfig_ValidateIntegration(t *testing.T) {
 	// Should fail on the first error (template empty)
 	assert.ErrorIs(t, err, apperrors.ErrTemplateEmpty)
 }
+
+// TestConfig_ValidateTimestamp_InvalidStrftimeFormats tests various invalid strftime format directives.
+func TestConfig_ValidateTimestamp_InvalidStrftimeFormats(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		format       string
+		expectError  bool
+		errorMessage string
+	}{
+		// Valid formats
+		{
+			name:        "valid simple date",
+			format:      "%Y-%m-%d",
+			expectError: false,
+		},
+		{
+			name:        "valid date and time",
+			format:      "%Y-%m-%d %H:%M:%S",
+			expectError: false,
+		},
+		{
+			name:        "valid RFC3339-like",
+			format:      "%Y-%m-%dT%H:%M:%S%z",
+			expectError: false,
+		},
+		{
+			name:        "valid with microseconds",
+			format:      "%Y-%m-%d %H:%M:%S.%f",
+			expectError: false,
+		},
+		{
+			name:        "valid with weekday and month names",
+			format:      "%a %b %d %Y %H:%M:%S",
+			expectError: false,
+		},
+		{
+			name:        "valid with timezone",
+			format:      "%Y-%m-%d %H:%M:%S %Z",
+			expectError: false,
+		},
+		{
+			name:        "valid with escaped percent",
+			format:      "%%Y-%m-%d",
+			expectError: false,
+		},
+		// Invalid formats - these may or may not fail depending on timefmt-go implementation
+		// Testing edge cases that should be caught
+		{
+			name:         "invalid directive %Q",
+			format:       "%Q",
+			expectError:  true,
+			errorMessage: "invalid strftime format",
+		},
+		{
+			name:         "invalid directive %K",
+			format:       "%K",
+			expectError:  true,
+			errorMessage: "invalid strftime format",
+		},
+		{
+			name:         "unclosed percent at end",
+			format:       "%Y-%m-%d %",
+			expectError:  true,
+			errorMessage: "invalid strftime format",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := getDefaultConfig()
+			cfg.Prefix.Timestamp.Format = tt.format
+
+			err := cfg.Validate()
+
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.errorMessage != "" {
+					assert.Contains(t, err.Error(), tt.errorMessage)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestConfig_ValidateLogLevel_EmptyKeywordsArray tests empty keyword arrays.
+func TestConfig_ValidateLogLevel_EmptyKeywordsArray(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		keywords    map[string][]string
+		expectError bool
+		expectedErr error
+	}{
+		{
+			name: "valid keywords with entries",
+			keywords: map[string][]string{
+				"error": {"ERROR", "FATAL"},
+				"warn":  {"WARN"},
+			},
+			expectError: false,
+		},
+		{
+			name: "empty keywords array for error",
+			keywords: map[string][]string{
+				"error": {},
+			},
+			expectError: true,
+			expectedErr: apperrors.ErrNoDetectionKeywords,
+		},
+		{
+			name: "empty keywords array for multiple levels",
+			keywords: map[string][]string{
+				"error": {},
+				"warn":  {},
+			},
+			expectError: true,
+			expectedErr: apperrors.ErrNoDetectionKeywords,
+		},
+		{
+			name: "mixed empty and valid keywords",
+			keywords: map[string][]string{
+				"error": {"ERROR"},
+				"warn":  {}, // Empty
+			},
+			expectError: true,
+			expectedErr: apperrors.ErrNoDetectionKeywords,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := getDefaultConfig()
+			cfg.LogLevel.Detection.Keywords = tt.keywords
+
+			err := cfg.Validate()
+
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.expectedErr != nil {
+					assert.ErrorIs(t, err, tt.expectedErr)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestConfig_ValidateLogLevel_EmptyStringsInKeywords tests keywords containing empty strings.
+func TestConfig_ValidateLogLevel_EmptyStringsInKeywords(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		keywords    map[string][]string
+		expectError bool
+		expectedErr error
+	}{
+		{
+			name: "valid keywords no empty strings",
+			keywords: map[string][]string{
+				"error": {"ERROR", "FATAL"},
+			},
+			expectError: false,
+		},
+		{
+			name: "keywords with one empty string",
+			keywords: map[string][]string{
+				"error": {"ERROR", ""},
+			},
+			expectError: true,
+			expectedErr: apperrors.ErrEmptyKeyword,
+		},
+		{
+			name: "keywords with only empty string",
+			keywords: map[string][]string{
+				"error": {""},
+			},
+			expectError: true,
+			expectedErr: apperrors.ErrEmptyKeyword,
+		},
+		{
+			name: "keywords with multiple empty strings",
+			keywords: map[string][]string{
+				"error": {"", "", "ERROR"},
+			},
+			expectError: true,
+			expectedErr: apperrors.ErrEmptyKeyword,
+		},
+		{
+			name: "multiple levels with empty strings",
+			keywords: map[string][]string{
+				"error": {"ERROR", ""},
+				"warn":  {"WARN"},
+			},
+			expectError: true,
+			expectedErr: apperrors.ErrEmptyKeyword,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := getDefaultConfig()
+			cfg.LogLevel.Detection.Keywords = tt.keywords
+
+			err := cfg.Validate()
+
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.expectedErr != nil {
+					assert.ErrorIs(t, err, tt.expectedErr)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestConfig_ValidateLogLevel_CaseSensitivity tests log level case sensitivity.
+func TestConfig_ValidateLogLevel_CaseSensitivity(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		level       string
+		expectError bool
+	}{
+		// Valid uppercase
+		{name: "valid TRACE", level: "TRACE", expectError: false},
+		{name: "valid DEBUG", level: "DEBUG", expectError: false},
+		{name: "valid INFO", level: "INFO", expectError: false},
+		{name: "valid WARN", level: "WARN", expectError: false},
+		{name: "valid ERROR", level: "ERROR", expectError: false},
+		{name: "valid FATAL", level: "FATAL", expectError: false},
+		// Valid lowercase
+		{name: "valid trace", level: "trace", expectError: false},
+		{name: "valid debug", level: "debug", expectError: false},
+		{name: "valid info", level: "info", expectError: false},
+		{name: "valid warn", level: "warn", expectError: false},
+		{name: "valid error", level: "error", expectError: false},
+		{name: "valid fatal", level: "fatal", expectError: false},
+		// Invalid mixed case
+		{name: "invalid Info", level: "Info", expectError: true},
+		{name: "invalid Error", level: "Error", expectError: true},
+		{name: "invalid WaRn", level: "WaRn", expectError: true},
+		{name: "invalid DeBuG", level: "DeBuG", expectError: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name+"_stdout", func(t *testing.T) {
+			t.Parallel()
+
+			cfg := getDefaultConfig()
+			cfg.LogLevel.DefaultStdout = tt.level
+
+			err := cfg.Validate()
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.ErrorIs(t, err, apperrors.ErrInvalidStdoutLogLevel)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+
+		t.Run(tt.name+"_stderr", func(t *testing.T) {
+			t.Parallel()
+
+			cfg := getDefaultConfig()
+			cfg.LogLevel.DefaultStderr = tt.level
+
+			err := cfg.Validate()
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.ErrorIs(t, err, apperrors.ErrInvalidStderrLogLevel)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestConfig_ValidateLogLevel_ConflictingConfiguration tests detection disabled but keywords provided.
+func TestConfig_ValidateLogLevel_ConflictingConfiguration(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		enabled     bool
+		keywords    map[string][]string
+		expectError bool
+		expectedErr error
+	}{
+		{
+			name:    "detection enabled with keywords - valid",
+			enabled: true,
+			keywords: map[string][]string{
+				"error": {"ERROR"},
+			},
+			expectError: false,
+		},
+		{
+			name:        "detection disabled with no keywords - valid",
+			enabled:     false,
+			keywords:    map[string][]string{},
+			expectError: false,
+		},
+		{
+			name:        "detection disabled with nil keywords - valid",
+			enabled:     false,
+			keywords:    nil,
+			expectError: false,
+		},
+		{
+			name:    "detection disabled but keywords provided - invalid",
+			enabled: false,
+			keywords: map[string][]string{
+				"error": {"ERROR"},
+			},
+			expectError: true,
+			expectedErr: apperrors.ErrDetectionDisabledWithKeywords,
+		},
+		{
+			name:    "detection disabled but multiple keywords provided - invalid",
+			enabled: false,
+			keywords: map[string][]string{
+				"error": {"ERROR"},
+				"warn":  {"WARN"},
+			},
+			expectError: true,
+			expectedErr: apperrors.ErrDetectionDisabledWithKeywords,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := getDefaultConfig()
+			cfg.LogLevel.Detection.Enabled = tt.enabled
+			cfg.LogLevel.Detection.Keywords = tt.keywords
+
+			err := cfg.Validate()
+
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.expectedErr != nil {
+					assert.ErrorIs(t, err, tt.expectedErr)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestConfig_ValidateColors_CaseInsensitivity tests that color validation is case-insensitive.
+func TestConfig_ValidateColors_CaseInsensitivity(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		color       string
+		expectError bool
+	}{
+		// Lowercase (should be valid)
+		{name: "lowercase red", color: "red", expectError: false},
+		{name: "lowercase blue", color: "blue", expectError: false},
+		{name: "lowercase green", color: "green", expectError: false},
+		// Uppercase (should be valid due to case-insensitive check)
+		{name: "uppercase RED", color: "RED", expectError: false},
+		{name: "uppercase BLUE", color: "BLUE", expectError: false},
+		{name: "uppercase GREEN", color: "GREEN", expectError: false},
+		// Mixed case (should be valid)
+		{name: "mixed Red", color: "Red", expectError: false},
+		{name: "mixed BlUe", color: "BlUe", expectError: false},
+		// Invalid colors
+		{name: "invalid purple", color: "purple", expectError: true},
+		{name: "invalid ORANGE", color: "ORANGE", expectError: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := getDefaultConfig()
+			cfg.Prefix.Colors.Info = tt.color
+
+			err := cfg.Validate()
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.ErrorIs(t, err, apperrors.ErrInvalidColor)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestConfig_ValidateBufferMode_AllModes tests all valid and invalid buffer modes.
+func TestConfig_ValidateBufferMode_AllModes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		bufferMode  string
+		expectError bool
+	}{
+		// Valid modes
+		{name: "valid line", bufferMode: "line", expectError: false},
+		{name: "valid none", bufferMode: "none", expectError: false},
+		{name: "valid full", bufferMode: "full", expectError: false},
+		// Invalid modes
+		{name: "invalid auto", bufferMode: "auto", expectError: true},
+		{name: "invalid block", bufferMode: "block", expectError: true},
+		{name: "invalid empty", bufferMode: "", expectError: true},
+		{name: "invalid mixed case", bufferMode: "Line", expectError: true},
+		{name: "invalid uppercase", bufferMode: "LINE", expectError: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := getDefaultConfig()
+			cfg.Output.Buffer = tt.bufferMode
+
+			err := cfg.Validate()
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.ErrorIs(t, err, apperrors.ErrInvalidBufferMode)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestConfig_ValidateOutputFormat_AllFormats tests all valid and invalid output formats.
+func TestConfig_ValidateOutputFormat_AllFormats(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		format      string
+		expectError bool
+	}{
+		// Valid formats
+		{name: "valid text", format: "text", expectError: false},
+		{name: "valid json", format: "json", expectError: false},
+		{name: "valid structured", format: "structured", expectError: false},
+		// Invalid formats
+		{name: "invalid xml", format: "xml", expectError: true},
+		{name: "invalid yaml", format: "yaml", expectError: true},
+		{name: "invalid empty", format: "", expectError: true},
+		{name: "invalid mixed case", format: "Text", expectError: true},
+		{name: "invalid uppercase", format: "JSON", expectError: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := getDefaultConfig()
+			cfg.Output.Format = tt.format
+
+			err := cfg.Validate()
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.ErrorIs(t, err, apperrors.ErrInvalidOutputFormat)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
