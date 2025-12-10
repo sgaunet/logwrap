@@ -57,7 +57,6 @@ type PIDConfig struct {
 // OutputConfig contains output formatting configuration.
 type OutputConfig struct {
 	Format string `yaml:"format"`
-	Buffer string `yaml:"buffer"`
 }
 
 // LogLevelConfig contains log level detection configuration.
@@ -133,7 +132,6 @@ func getDefaultConfig() *Config {
 		},
 		Output: OutputConfig{
 			Format: "text",
-			Buffer: "line",
 		},
 		LogLevel: LogLevelConfig{
 			DefaultStdout: "INFO",

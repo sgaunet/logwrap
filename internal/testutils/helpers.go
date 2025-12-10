@@ -191,7 +191,6 @@ prefix:
 
 output:
   format: "text"
-  buffer: "line"
 
 log_level:
   default_stdout: "INFO"

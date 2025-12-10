@@ -47,11 +47,6 @@ func TestConfigurationErrors(t *testing.T) {
 			expected: "invalid output format",
 		},
 		{
-			name:     "ErrInvalidBufferMode",
-			err:      ErrInvalidBufferMode,
-			expected: "invalid buffer mode",
-		},
-		{
 			name:     "ErrInvalidStdoutLogLevel",
 			err:      ErrInvalidStdoutLogLevel,
 			expected: "invalid default stdout log level",
@@ -245,7 +240,6 @@ func TestErrorWrapping(t *testing.T) {
 		ErrInvalidUserFormat,
 		ErrInvalidPIDFormat,
 		ErrInvalidOutputFormat,
-		ErrInvalidBufferMode,
 		ErrInvalidStdoutLogLevel,
 		ErrInvalidStderrLogLevel,
 		ErrInvalidLogLevel,
