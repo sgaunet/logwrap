@@ -3,7 +3,7 @@ package config
 import (
 	"testing"
 
-	"github.com/sgaunet/logwrap/pkg/errors"
+	"github.com/sgaunet/logwrap/pkg/apperrors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +25,7 @@ func TestConfig_ValidatePrefix_EmptyTemplate(t *testing.T) {
 
 	err := cfg.Validate()
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, errors.ErrTemplateEmpty)
+	assert.ErrorIs(t, err, apperrors.ErrTemplateEmpty)
 	assert.Contains(t, err.Error(), "prefix configuration error")
 }
 
@@ -53,7 +53,7 @@ func TestConfig_ValidateTimestamp(t *testing.T) {
 			name:         "empty format",
 			format:       "",
 			expectError:  true,
-			expectedErr:  errors.ErrTimestampFormatEmpty,
+			expectedErr:  apperrors.ErrTimestampFormatEmpty,
 			errorMessage: "timestamp format cannot be empty",
 		},
 	}
@@ -152,7 +152,7 @@ func TestConfig_ValidateColors(t *testing.T) {
 
 				if tt.expectError {
 					assert.Error(t, err)
-					assert.ErrorIs(t, err, errors.ErrInvalidColor)
+					assert.ErrorIs(t, err, apperrors.ErrInvalidColor)
 					assert.Contains(t, err.Error(), "invalid color")
 				} else {
 					assert.NoError(t, err)
@@ -205,7 +205,7 @@ func TestConfig_ValidateUser(t *testing.T) {
 
 			if tt.expectError {
 				assert.Error(t, err)
-				assert.ErrorIs(t, err, errors.ErrInvalidUserFormat)
+				assert.ErrorIs(t, err, apperrors.ErrInvalidUserFormat)
 				assert.Contains(t, err.Error(), "invalid user format")
 			} else {
 				assert.NoError(t, err)
@@ -253,7 +253,7 @@ func TestConfig_ValidatePID(t *testing.T) {
 
 			if tt.expectError {
 				assert.Error(t, err)
-				assert.ErrorIs(t, err, errors.ErrInvalidPIDFormat)
+				assert.ErrorIs(t, err, apperrors.ErrInvalidPIDFormat)
 				assert.Contains(t, err.Error(), "invalid PID format")
 			} else {
 				assert.NoError(t, err)
@@ -292,21 +292,21 @@ func TestConfig_ValidateOutput(t *testing.T) {
 			format:      "invalid",
 			buffer:      "line",
 			expectError: true,
-			expectedErr: errors.ErrInvalidOutputFormat,
+			expectedErr: apperrors.ErrInvalidOutputFormat,
 		},
 		{
 			name:        "invalid buffer",
 			format:      "text",
 			buffer:      "invalid",
 			expectError: true,
-			expectedErr: errors.ErrInvalidBufferMode,
+			expectedErr: apperrors.ErrInvalidBufferMode,
 		},
 		{
 			name:        "both invalid",
 			format:      "invalid",
 			buffer:      "invalid",
 			expectError: true,
-			expectedErr: errors.ErrInvalidOutputFormat, // First error encountered
+			expectedErr: apperrors.ErrInvalidOutputFormat, // First error encountered
 		},
 	}
 
@@ -362,14 +362,14 @@ func TestConfig_ValidateLogLevel(t *testing.T) {
 			stdoutLevel: "INVALID",
 			stderrLevel: "ERROR",
 			expectError: true,
-			expectedErr: errors.ErrInvalidStdoutLogLevel,
+			expectedErr: apperrors.ErrInvalidStdoutLogLevel,
 		},
 		{
 			name:        "invalid stderr level",
 			stdoutLevel: "INFO",
 			stderrLevel: "INVALID",
 			expectError: true,
-			expectedErr: errors.ErrInvalidStderrLogLevel,
+			expectedErr: apperrors.ErrInvalidStderrLogLevel,
 		},
 		{
 			name:           "invalid detection level",
@@ -378,7 +378,7 @@ func TestConfig_ValidateLogLevel(t *testing.T) {
 			detectionLevel: "invalid",
 			keywords:       []string{"ERROR"},
 			expectError:    true,
-			expectedErr:    errors.ErrInvalidLogLevel,
+			expectedErr:    apperrors.ErrInvalidLogLevel,
 		},
 		{
 			name:           "empty keywords",
@@ -387,7 +387,7 @@ func TestConfig_ValidateLogLevel(t *testing.T) {
 			detectionLevel: "error",
 			keywords:       []string{},
 			expectError:    true,
-			expectedErr:    errors.ErrNoDetectionKeywords,
+			expectedErr:    apperrors.ErrNoDetectionKeywords,
 		},
 	}
 
@@ -442,7 +442,7 @@ func TestConfig_ValidateLogLevel(t *testing.T) {
 
 			err := cfg.Validate()
 			assert.Error(t, err)
-			assert.ErrorIs(t, err, errors.ErrInvalidStdoutLogLevel)
+			assert.ErrorIs(t, err, apperrors.ErrInvalidStdoutLogLevel)
 		})
 
 		t.Run("invalid_stderr_level_"+level, func(t *testing.T) {
@@ -453,7 +453,7 @@ func TestConfig_ValidateLogLevel(t *testing.T) {
 
 			err := cfg.Validate()
 			assert.Error(t, err)
-			assert.ErrorIs(t, err, errors.ErrInvalidStderrLogLevel)
+			assert.ErrorIs(t, err, apperrors.ErrInvalidStderrLogLevel)
 		})
 	}
 }
@@ -553,5 +553,5 @@ func TestConfig_ValidateIntegration(t *testing.T) {
 	require.Error(t, err)
 
 	// Should fail on the first error (template empty)
-	assert.ErrorIs(t, err, errors.ErrTemplateEmpty)
+	assert.ErrorIs(t, err, apperrors.ErrTemplateEmpty)
 }

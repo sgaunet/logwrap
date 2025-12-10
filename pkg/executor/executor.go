@@ -13,7 +13,7 @@ import (
 	"strings"
 	"syscall"
 
-	appErrors "github.com/sgaunet/logwrap/pkg/errors"
+	appErrors "github.com/sgaunet/logwrap/pkg/apperrors"
 )
 
 // Executor manages command execution with stream capture and signal handling.

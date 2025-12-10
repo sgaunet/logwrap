@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/sgaunet/logwrap/internal/testutils"
-	"github.com/sgaunet/logwrap/pkg/errors"
+	"github.com/sgaunet/logwrap/pkg/apperrors"
 	"github.com/sgaunet/logwrap/pkg/processor"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -211,7 +211,7 @@ func TestProcessor_ProcessStreams_NilReaders(t *testing.T) {
 
 			err := p.ProcessStreams(ctx, tt.stdout, tt.stderr)
 			assert.Error(t, err)
-			assert.ErrorIs(t, err, errors.ErrReadersNil)
+			assert.ErrorIs(t, err, apperrors.ErrReadersNil)
 		})
 	}
 }
@@ -331,7 +331,7 @@ func TestProcessor_Wait_Timeout(t *testing.T) {
 	// Wait with short timeout should timeout
 	err := p.Wait(30 * time.Millisecond)
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, errors.ErrProcessorTimeout)
+	assert.ErrorIs(t, err, apperrors.ErrProcessorTimeout)
 	assert.Contains(t, err.Error(), "30ms")
 
 	// Clean up - stop the processor to avoid goroutine leaks
