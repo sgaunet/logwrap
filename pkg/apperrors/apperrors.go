@@ -13,7 +13,6 @@ var (
 	ErrInvalidUserFormat           = errors.New("invalid user format")
 	ErrInvalidPIDFormat            = errors.New("invalid PID format")
 	ErrInvalidOutputFormat         = errors.New("invalid output format")
-	ErrInvalidBufferMode           = errors.New("invalid buffer mode")
 	ErrInvalidStdoutLogLevel       = errors.New("invalid default stdout log level")
 	ErrInvalidStderrLogLevel       = errors.New("invalid default stderr log level")
 	ErrInvalidLogLevel             = errors.New("invalid log level")

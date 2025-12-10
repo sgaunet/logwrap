@@ -268,45 +268,26 @@ func TestConfig_ValidateOutput(t *testing.T) {
 	tests := []struct {
 		name        string
 		format      string
-		buffer      string
 		expectError bool
 		expectedErr error
 	}{
 		{
-			name:   "valid text format with line buffer",
+			name:   "valid text format",
 			format: "text",
-			buffer: "line",
 		},
 		{
-			name:   "valid json format with none buffer",
+			name:   "valid json format",
 			format: "json",
-			buffer: "none",
 		},
 		{
-			name:   "valid structured format with full buffer",
+			name:   "valid structured format",
 			format: "structured",
-			buffer: "full",
 		},
 		{
 			name:        "invalid format",
 			format:      "invalid",
-			buffer:      "line",
 			expectError: true,
 			expectedErr: apperrors.ErrInvalidOutputFormat,
-		},
-		{
-			name:        "invalid buffer",
-			format:      "text",
-			buffer:      "invalid",
-			expectError: true,
-			expectedErr: apperrors.ErrInvalidBufferMode,
-		},
-		{
-			name:        "both invalid",
-			format:      "invalid",
-			buffer:      "invalid",
-			expectError: true,
-			expectedErr: apperrors.ErrInvalidOutputFormat, // First error encountered
 		},
 	}
 
@@ -316,7 +297,6 @@ func TestConfig_ValidateOutput(t *testing.T) {
 
 			cfg := getDefaultConfig()
 			cfg.Output.Format = tt.format
-			cfg.Output.Buffer = tt.buffer
 
 			err := cfg.Validate()
 
@@ -535,7 +515,6 @@ func TestConfig_ValidateIntegration(t *testing.T) {
 		},
 		Output: OutputConfig{
 			Format: "invalid", // Invalid: not text/json/structured
-			Buffer: "invalid", // Invalid: not line/none/full
 		},
 		LogLevel: LogLevelConfig{
 			DefaultStdout: "INVALID", // Invalid: not a valid level
@@ -961,46 +940,6 @@ func TestConfig_ValidateColors_CaseInsensitivity(t *testing.T) {
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.ErrorIs(t, err, apperrors.ErrInvalidColor)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-// TestConfig_ValidateBufferMode_AllModes tests all valid and invalid buffer modes.
-func TestConfig_ValidateBufferMode_AllModes(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name        string
-		bufferMode  string
-		expectError bool
-	}{
-		// Valid modes
-		{name: "valid line", bufferMode: "line", expectError: false},
-		{name: "valid none", bufferMode: "none", expectError: false},
-		{name: "valid full", bufferMode: "full", expectError: false},
-		// Invalid modes
-		{name: "invalid auto", bufferMode: "auto", expectError: true},
-		{name: "invalid block", bufferMode: "block", expectError: true},
-		{name: "invalid empty", bufferMode: "", expectError: true},
-		{name: "invalid mixed case", bufferMode: "Line", expectError: true},
-		{name: "invalid uppercase", bufferMode: "LINE", expectError: true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			cfg := getDefaultConfig()
-			cfg.Output.Buffer = tt.bufferMode
-
-			err := cfg.Validate()
-
-			if tt.expectError {
-				assert.Error(t, err)
-				assert.ErrorIs(t, err, apperrors.ErrInvalidBufferMode)
 			} else {
 				assert.NoError(t, err)
 			}

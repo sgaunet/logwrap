@@ -130,13 +130,6 @@ func (c *Config) validateOutput() error {
 			apperrors.ErrInvalidOutputFormat, c.Output.Format, strings.Join(validFormats, ", "))
 	}
 
-	validBuffers := []string{"line", "none", "full"}
-
-	if !slices.Contains(validBuffers, c.Output.Buffer) {
-		return fmt.Errorf("%w '%s', valid modes: %s",
-			apperrors.ErrInvalidBufferMode, c.Output.Buffer, strings.Join(validBuffers, ", "))
-	}
-
 	return nil
 }
 
