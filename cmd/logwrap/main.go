@@ -5,7 +5,10 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"slices"
+	"syscall"
+	"time"
 
 	"github.com/sgaunet/logwrap/pkg/apperrors"
 	"github.com/sgaunet/logwrap/pkg/config"
@@ -15,8 +18,12 @@ import (
 )
 
 const (
-	version = "development"
-	usage   = `LogWrap - Command execution wrapper with configurable log prefixes
+	version                = "development"
+	exitCodeSIGINT         = 130 // 128 + 2 (SIGINT)
+	exitCodeSIGTERM        = 143 // 128 + 15 (SIGTERM)
+	gracefulShutdownTimeout = 5 * time.Second
+	processorWaitTimeout    = 3 * time.Second
+	usage                   = `LogWrap - Command execution wrapper with configurable log prefixes
 
 Usage:
   logwrap [options] -- <command> [args...]
@@ -177,20 +184,110 @@ func run(cfg *config.Config, command []string) error {
 
 	stdout, stderr := exec.GetStreams()
 
+	// Set up signal handling
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Start stream processing in background
 	ctx := context.Background()
 	processingDone := make(chan error, 1)
 	go func() {
 		processingDone <- proc.ProcessStreams(ctx, stdout, stderr)
 	}()
 
-	if err := exec.Wait(); err != nil {
-		return fmt.Errorf("command execution error: %w", err)
-	}
+	// Wait for command to complete or signal
+	receivedSignal, cmdErr := waitForCommandOrSignal(exec, proc, sigChan)
 
-	if err := <-processingDone; err != nil {
-		fmt.Fprintf(os.Stderr, "Stream processing error: %v\n", err)
-	}
+	// Wait for stream processing to complete
+	waitForProcessing(proc, processingDone)
 
-	os.Exit(exec.GetExitCode())
+	// Clean up signal handler before exit
+	signal.Stop(sigChan)
+
+	// Determine final exit code and exit
+	exitCode := determineExitCode(exec, receivedSignal, cmdErr)
+	os.Exit(exitCode)
 	return nil
+}
+
+func waitForCommandOrSignal(
+	exec *executor.Executor,
+	proc *processor.Processor,
+	sigChan chan os.Signal,
+) (os.Signal, error) {
+	cmdDone := make(chan error, 1)
+	go func() {
+		cmdDone <- exec.Wait()
+	}()
+
+	var receivedSignal os.Signal
+	var cmdErr error
+
+	select {
+	case sig := <-sigChan:
+		receivedSignal = sig
+		cmdErr = handleSignalShutdown(exec, proc, sig, cmdDone)
+	case cmdErr = <-cmdDone:
+		// Command finished normally
+	}
+
+	return receivedSignal, cmdErr
+}
+
+func handleSignalShutdown(exec *executor.Executor, proc *processor.Processor, sig os.Signal, cmdDone chan error) error {
+	fmt.Fprintf(os.Stderr, "\nReceived signal %v, initiating graceful shutdown...\n", sig)
+
+	// Stop the processor first
+	proc.Stop()
+
+	// Try to stop the executor gracefully
+	if err := exec.Stop(); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to stop executor gracefully: %v\n", err)
+	}
+
+	// Wait for command with timeout
+	shutdownTimer := time.NewTimer(gracefulShutdownTimeout)
+	defer shutdownTimer.Stop()
+
+	select {
+	case cmdErr := <-cmdDone:
+		// Command finished gracefully
+		return cmdErr
+	case <-shutdownTimer.C:
+		fmt.Fprintf(os.Stderr, "Shutdown timeout exceeded, forcing kill...\n")
+		if err := exec.Kill(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to kill process: %v\n", err)
+		}
+		return <-cmdDone // Wait for process to actually die
+	}
+}
+
+func waitForProcessing(proc *processor.Processor, processingDone chan error) {
+	processingTimer := time.NewTimer(processorWaitTimeout)
+	defer processingTimer.Stop()
+
+	select {
+	case procErr := <-processingDone:
+		if procErr != nil {
+			fmt.Fprintf(os.Stderr, "Stream processing error: %v\n", procErr)
+		}
+	case <-processingTimer.C:
+		fmt.Fprintf(os.Stderr, "Warning: stream processing timeout, some output may be lost\n")
+		proc.Stop() // Ensure processor is stopped
+	}
+}
+
+func determineExitCode(exec *executor.Executor, receivedSignal os.Signal, _ error) int {
+	// If we received a signal, use signal-based exit code
+	if receivedSignal != nil {
+		switch receivedSignal {
+		case syscall.SIGINT:
+			return exitCodeSIGINT
+		case syscall.SIGTERM:
+			return exitCodeSIGTERM
+		}
+	}
+
+	// Otherwise use command's exit code
+	return exec.GetExitCode()
 }

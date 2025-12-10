@@ -273,6 +273,91 @@ func TestProcessor_Stop(t *testing.T) {
 	p.Stop()
 }
 
+func TestProcessor_Stop_DoubleStopSafety(t *testing.T) {
+	t.Parallel()
+
+	output := &testutils.MockWriter{}
+	formatter := &mockFormatter{}
+	p := processor.New(formatter, output)
+
+	// Start processing in background
+	go func() {
+		ctx := context.Background()
+		stdout := strings.NewReader("test line")
+		stderr := strings.NewReader("")
+		_ = p.ProcessStreams(ctx, stdout, stderr)
+	}()
+
+	// Give it time to start
+	time.Sleep(10 * time.Millisecond)
+
+	// Call Stop multiple times concurrently
+	const numStops = 100
+	var wg sync.WaitGroup
+	wg.Add(numStops)
+
+	for i := 0; i < numStops; i++ {
+		go func() {
+			defer wg.Done()
+			p.Stop()
+		}()
+	}
+
+	wg.Wait()
+
+	// Should not panic and should complete successfully
+	err := p.Wait(1 * time.Second)
+	if err != nil {
+		// Error is acceptable (context cancelled), but should not panic
+		assert.Contains(t, err.Error(), "timeout")
+	}
+}
+
+func TestProcessor_Stop_DuringProcessing(t *testing.T) {
+	t.Parallel()
+
+	output := &testutils.MockWriter{}
+	formatter := &mockFormatter{}
+	p := processor.New(formatter, output)
+
+	// Create a context that we control
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create a slow reader to ensure processing is in progress
+	slowReader := &testutils.SlowReader{
+		Content: "line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8\nline9\nline10",
+		Delay:   50 * time.Millisecond,
+	}
+
+	// Start processing
+	processingErr := make(chan error, 1)
+	go func() {
+		processingErr <- p.ProcessStreams(ctx, slowReader, strings.NewReader(""))
+	}()
+
+	// Give processing time to start
+	time.Sleep(100 * time.Millisecond)
+
+	// Cancel context to stop processing (simulating what Stop does)
+	cancel()
+
+	// Call Stop (should be safe to call even after context is cancelled)
+	p.Stop()
+
+	// Wait for processing to complete
+	select {
+	case err := <-processingErr:
+		// Should get an error due to context cancellation
+		if err != nil {
+			assert.Contains(t, err.Error(), "processing errors occurred")
+		}
+		// No error is also acceptable if processing completed before cancellation
+	case <-time.After(2 * time.Second):
+		t.Fatal("Test timeout - processing did not complete")
+	}
+}
+
 func TestProcessor_Wait_Success(t *testing.T) {
 	t.Parallel()
 
