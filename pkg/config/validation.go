@@ -153,6 +153,11 @@ func (c *Config) validateLogLevel() error {
 			apperrors.ErrInvalidStderrLogLevel, c.LogLevel.DefaultStderr, strings.Join(validLevels, ", "))
 	}
 
+	// Check for conflicting configuration: detection disabled but keywords provided
+	if !c.LogLevel.Detection.Enabled && len(c.LogLevel.Detection.Keywords) > 0 {
+		return apperrors.ErrDetectionDisabledWithKeywords
+	}
+
 	for level, keywords := range c.LogLevel.Detection.Keywords {
 		if !isValidLogLevel(strings.ToUpper(level), validLevels) {
 			return fmt.Errorf("%w '%s' in detection keywords", apperrors.ErrInvalidLogLevel, level)
@@ -160,6 +165,14 @@ func (c *Config) validateLogLevel() error {
 
 		if len(keywords) == 0 {
 			return fmt.Errorf("%w '%s'", apperrors.ErrNoDetectionKeywords, level)
+		}
+
+		// Check for empty strings in keywords
+		//nolint:modernize // Need to return error with level context, not just check existence
+		for _, keyword := range keywords {
+			if keyword == "" {
+				return fmt.Errorf("%w for level '%s'", apperrors.ErrEmptyKeyword, level)
+			}
 		}
 	}
 
