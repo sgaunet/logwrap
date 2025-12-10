@@ -2,11 +2,12 @@ package config
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/itchyny/timefmt-go"
-	"github.com/sgaunet/logwrap/pkg/errors"
+	"github.com/sgaunet/logwrap/pkg/apperrors"
 )
 
 // Validate checks if the configuration is valid and returns an error if not.
@@ -28,7 +29,7 @@ func (c *Config) Validate() error {
 
 func (c *Config) validatePrefix() error {
 	if c.Prefix.Template == "" {
-		return errors.ErrTemplateEmpty
+		return apperrors.ErrTemplateEmpty
 	}
 
 	if err := c.validateTimestamp(); err != nil {
@@ -52,7 +53,7 @@ func (c *Config) validatePrefix() error {
 
 func (c *Config) validateTimestamp() error {
 	if c.Prefix.Timestamp.Format == "" {
-		return errors.ErrTimestampFormatEmpty
+		return apperrors.ErrTimestampFormatEmpty
 	}
 
 	// Validate strftime format by attempting to format and parse
@@ -92,7 +93,7 @@ func (c *Config) validateColors() error {
 	for _, color := range colors {
 		if !validColors[strings.ToLower(color.value)] {
 			return fmt.Errorf("%w '%s' for %s, valid colors: %s",
-				errors.ErrInvalidColor, color.value, color.name, getValidColorsString())
+				apperrors.ErrInvalidColor, color.value, color.name, getValidColorsString())
 		}
 	}
 
@@ -102,53 +103,41 @@ func (c *Config) validateColors() error {
 func (c *Config) validateUser() error {
 	validFormats := []string{"username", "uid", "full"}
 
-	for _, format := range validFormats {
-		if c.Prefix.User.Format == format {
-			return nil
-		}
+	if slices.Contains(validFormats, c.Prefix.User.Format) {
+		return nil
 	}
 
 	return fmt.Errorf("%w '%s', valid formats: %s",
-		errors.ErrInvalidUserFormat, c.Prefix.User.Format, strings.Join(validFormats, ", "))
+		apperrors.ErrInvalidUserFormat, c.Prefix.User.Format, strings.Join(validFormats, ", "))
 }
 
 func (c *Config) validatePID() error {
 	validFormats := []string{"decimal", "hex"}
 
-	for _, format := range validFormats {
-		if c.Prefix.PID.Format == format {
-			return nil
-		}
+	if slices.Contains(validFormats, c.Prefix.PID.Format) {
+		return nil
 	}
 
 	return fmt.Errorf("%w '%s', valid formats: %s",
-		errors.ErrInvalidPIDFormat, c.Prefix.PID.Format, strings.Join(validFormats, ", "))
+		apperrors.ErrInvalidPIDFormat, c.Prefix.PID.Format, strings.Join(validFormats, ", "))
 }
 
 func (c *Config) validateOutput() error {
 	validFormats := []string{"text", "json", "structured"}
 
-	for _, format := range validFormats {
-		if c.Output.Format == format {
-			break
-		}
-	}
-
-	if c.Output.Format != "text" && c.Output.Format != "json" && c.Output.Format != "structured" {
+	if !slices.Contains(validFormats, c.Output.Format) {
 		return fmt.Errorf("%w '%s', valid formats: %s",
-			errors.ErrInvalidOutputFormat, c.Output.Format, strings.Join(validFormats, ", "))
+			apperrors.ErrInvalidOutputFormat, c.Output.Format, strings.Join(validFormats, ", "))
 	}
 
 	validBuffers := []string{"line", "none", "full"}
 
-	for _, buffer := range validBuffers {
-		if c.Output.Buffer == buffer {
-			return nil
-		}
+	if !slices.Contains(validBuffers, c.Output.Buffer) {
+		return fmt.Errorf("%w '%s', valid modes: %s",
+			apperrors.ErrInvalidBufferMode, c.Output.Buffer, strings.Join(validBuffers, ", "))
 	}
 
-	return fmt.Errorf("%w '%s', valid modes: %s",
-		errors.ErrInvalidBufferMode, c.Output.Buffer, strings.Join(validBuffers, ", "))
+	return nil
 }
 
 func (c *Config) validateLogLevel() error {
@@ -156,21 +145,21 @@ func (c *Config) validateLogLevel() error {
 
 	if !isValidLogLevel(c.LogLevel.DefaultStdout, validLevels) {
 		return fmt.Errorf("%w '%s', valid levels: %s",
-			errors.ErrInvalidStdoutLogLevel, c.LogLevel.DefaultStdout, strings.Join(validLevels, ", "))
+			apperrors.ErrInvalidStdoutLogLevel, c.LogLevel.DefaultStdout, strings.Join(validLevels, ", "))
 	}
 
 	if !isValidLogLevel(c.LogLevel.DefaultStderr, validLevels) {
 		return fmt.Errorf("%w '%s', valid levels: %s",
-			errors.ErrInvalidStderrLogLevel, c.LogLevel.DefaultStderr, strings.Join(validLevels, ", "))
+			apperrors.ErrInvalidStderrLogLevel, c.LogLevel.DefaultStderr, strings.Join(validLevels, ", "))
 	}
 
 	for level, keywords := range c.LogLevel.Detection.Keywords {
 		if !isValidLogLevel(strings.ToUpper(level), validLevels) {
-			return fmt.Errorf("%w '%s' in detection keywords", errors.ErrInvalidLogLevel, level)
+			return fmt.Errorf("%w '%s' in detection keywords", apperrors.ErrInvalidLogLevel, level)
 		}
 
 		if len(keywords) == 0 {
-			return fmt.Errorf("%w '%s'", errors.ErrNoDetectionKeywords, level)
+			return fmt.Errorf("%w '%s'", apperrors.ErrNoDetectionKeywords, level)
 		}
 	}
 
@@ -179,10 +168,8 @@ func (c *Config) validateLogLevel() error {
 
 func isValidLogLevel(level string, validLevels []string) bool {
 	// Check for exact uppercase match
-	for _, valid := range validLevels {
-		if level == valid {
-			return true
-		}
+	if slices.Contains(validLevels, level) {
+		return true
 	}
 
 	// Check for exact lowercase match

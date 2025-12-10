@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/sgaunet/logwrap/pkg/errors"
+	"github.com/sgaunet/logwrap/pkg/apperrors"
 	"gopkg.in/yaml.v3"
 )
 
@@ -235,13 +235,13 @@ func validateConfigPath(configFile string) error {
 	// Prevent path traversal attacks
 	cleaned := filepath.Clean(configFile)
 	if strings.Contains(cleaned, "..") {
-		return errors.ErrPathTraversal
+		return apperrors.ErrPathTraversal
 	}
 
 	// Only allow .yaml, .yml files
 	ext := strings.ToLower(filepath.Ext(cleaned))
 	if ext != ".yaml" && ext != ".yml" {
-		return errors.ErrInvalidFileType
+		return apperrors.ErrInvalidFileType
 	}
 
 	return nil

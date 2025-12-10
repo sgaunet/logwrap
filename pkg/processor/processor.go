@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	pkgerrors "github.com/sgaunet/logwrap/pkg/errors"
+	pkgerrors "github.com/sgaunet/logwrap/pkg/apperrors"
 )
 
 // StreamType represents the type of stream (stdout or stderr).

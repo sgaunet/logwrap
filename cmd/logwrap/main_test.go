@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/sgaunet/logwrap/pkg/errors"
+	"github.com/sgaunet/logwrap/pkg/apperrors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -142,7 +142,7 @@ func TestParseArgs_Errors(t *testing.T) {
 			assert.Error(t, err)
 			assert.Nil(t, configArgs)
 			assert.Nil(t, command)
-			assert.ErrorIs(t, err, errors.ErrOptionRequiresValue)
+			assert.ErrorIs(t, err, apperrors.ErrOptionRequiresValue)
 			assert.Contains(t, err.Error(), tt.errorMsg)
 		})
 	}

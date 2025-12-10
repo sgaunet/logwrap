@@ -123,8 +123,40 @@ func (f *DefaultFormatter) formatJSON(data TemplateData) string {
 }
 
 func (f *DefaultFormatter) formatStructured(data TemplateData) string {
-	return fmt.Sprintf("timestamp=%s level=%s user=%s pid=%s message=%q",
-		data.Timestamp, data.Level, data.User, data.PID, data.Line)
+	return fmt.Sprintf("timestamp=%s level=%s user=%s pid=%s message=%s",
+		quoteIfNeeded(data.Timestamp),
+		quoteIfNeeded(data.Level),
+		quoteIfNeeded(data.User),
+		quoteIfNeeded(data.PID),
+		strconv.Quote(data.Line)) // Always quote message field using strconv.Quote for proper escaping
+}
+
+// quoteIfNeeded quotes a string value if it contains special characters.
+// Uses strconv.Quote for proper Go string escaping.
+func quoteIfNeeded(s string) string {
+	// Quote if string contains whitespace, quotes, backslashes, or control characters
+	if needsQuoting(s) {
+		return strconv.Quote(s)
+	}
+	return s
+}
+
+// needsQuoting returns true if the string contains characters that require quoting
+// in structured log format (spaces, tabs, newlines, quotes, backslashes, etc.).
+func needsQuoting(s string) bool {
+	for _, r := range s {
+		switch {
+		case r == ' ', r == '\t', r == '\n', r == '\r':
+			return true
+		case r == '"', r == '\'', r == '\\':
+			return true
+		case r == '=': // Equals signs could break key=value parsing
+			return true
+		case r < 32 || r == 127: // Control characters
+			return true
+		}
+	}
+	return false
 }
 
 func (f *DefaultFormatter) buildTemplateData(line string, streamType processor.StreamType) TemplateData {

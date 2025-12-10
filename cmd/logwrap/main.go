@@ -7,8 +7,8 @@ import (
 	"os"
 	"slices"
 
+	"github.com/sgaunet/logwrap/pkg/apperrors"
 	"github.com/sgaunet/logwrap/pkg/config"
-	"github.com/sgaunet/logwrap/pkg/errors"
 	"github.com/sgaunet/logwrap/pkg/executor"
 	"github.com/sgaunet/logwrap/pkg/formatter"
 	"github.com/sgaunet/logwrap/pkg/processor"
@@ -129,7 +129,7 @@ func parseArgs(args []string) ([]string, []string, error) {
 
 			if arg == "-config" || arg == "-template" || arg == "-format" {
 				if i+1 >= len(args) {
-					return nil, nil, fmt.Errorf("%w: %s", errors.ErrOptionRequiresValue, arg)
+					return nil, nil, fmt.Errorf("%w: %s", apperrors.ErrOptionRequiresValue, arg)
 				}
 				i++
 				configArgs = append(configArgs, args[i])

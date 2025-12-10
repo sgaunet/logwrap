@@ -1,5 +1,5 @@
-// Package errors defines static errors used throughout the logwrap application.
-package errors
+// Package apperrors defines static errors used throughout the logwrap application.
+package apperrors
 
 import "errors"
 

@@ -862,3 +862,262 @@ func TestFormatLine_TemplateExecutionError(t *testing.T) {
 	result := formatter.FormatLine("test", processor.StreamStdout)
 	assert.Equal(t, "INFOtest", result)
 }
+
+// TestFormatLine_JSONSanitization tests JSON output with special characters.
+func TestFormatLine_JSONSanitization(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		Prefix: config.PrefixConfig{
+			Template: "[{{.Level}}] ",
+			Timestamp: config.TimestampConfig{
+				Format: "%Y-%m-%dT%H:%M:%S",
+				UTC:    false,
+			},
+			User: config.UserConfig{
+				Enabled: true,
+				Format:  "username",
+			},
+			PID: config.PIDConfig{
+				Enabled: true,
+				Format:  "decimal",
+			},
+		},
+		Output: config.OutputConfig{
+			Format: "json",
+		},
+		LogLevel: config.LogLevelConfig{
+			DefaultStdout: "INFO",
+			DefaultStderr: "ERROR",
+			Detection: config.DetectionConfig{
+				Enabled: false,
+			},
+		},
+	}
+
+	formatter, err := New(cfg)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		line       string
+		streamType processor.StreamType
+		validate   func(*testing.T, string)
+	}{
+		{
+			name:       "message with double quotes",
+			line:       `message with "quotes" inside`,
+			streamType: processor.StreamStdout,
+			validate: func(t *testing.T, result string) {
+				var jsonData map[string]interface{}
+				err := json.Unmarshal([]byte(result), &jsonData)
+				require.NoError(t, err, "JSON should be valid")
+				assert.Equal(t, `message with "quotes" inside`, jsonData["message"])
+			},
+		},
+		{
+			name:       "message with newline",
+			line:       "message with\nnewline",
+			streamType: processor.StreamStdout,
+			validate: func(t *testing.T, result string) {
+				var jsonData map[string]interface{}
+				err := json.Unmarshal([]byte(result), &jsonData)
+				require.NoError(t, err, "JSON should be valid")
+				assert.Equal(t, "message with\nnewline", jsonData["message"])
+			},
+		},
+		{
+			name:       "message with backslash",
+			line:       `path\to\file`,
+			streamType: processor.StreamStdout,
+			validate: func(t *testing.T, result string) {
+				var jsonData map[string]interface{}
+				err := json.Unmarshal([]byte(result), &jsonData)
+				require.NoError(t, err, "JSON should be valid")
+				assert.Equal(t, `path\to\file`, jsonData["message"])
+			},
+		},
+		{
+			name:       "message with tab character",
+			line:       "message\twith\ttabs",
+			streamType: processor.StreamStdout,
+			validate: func(t *testing.T, result string) {
+				var jsonData map[string]interface{}
+				err := json.Unmarshal([]byte(result), &jsonData)
+				require.NoError(t, err, "JSON should be valid")
+				assert.Equal(t, "message\twith\ttabs", jsonData["message"])
+			},
+		},
+		{
+			name:       "message with carriage return",
+			line:       "message\rwith\rCR",
+			streamType: processor.StreamStdout,
+			validate: func(t *testing.T, result string) {
+				var jsonData map[string]interface{}
+				err := json.Unmarshal([]byte(result), &jsonData)
+				require.NoError(t, err, "JSON should be valid")
+				assert.Equal(t, "message\rwith\rCR", jsonData["message"])
+			},
+		},
+		{
+			name:       "message with unicode characters",
+			line:       "message with emoji 🚀 and unicode ñ",
+			streamType: processor.StreamStdout,
+			validate: func(t *testing.T, result string) {
+				var jsonData map[string]interface{}
+				err := json.Unmarshal([]byte(result), &jsonData)
+				require.NoError(t, err, "JSON should be valid")
+				assert.Equal(t, "message with emoji 🚀 and unicode ñ", jsonData["message"])
+			},
+		},
+		{
+			name:       "message with all special chars",
+			line:       "test\n\"quotes\"\t\\backslash\rCR",
+			streamType: processor.StreamStdout,
+			validate: func(t *testing.T, result string) {
+				var jsonData map[string]interface{}
+				err := json.Unmarshal([]byte(result), &jsonData)
+				require.NoError(t, err, "JSON should be valid")
+				assert.Equal(t, "test\n\"quotes\"\t\\backslash\rCR", jsonData["message"])
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := formatter.FormatLine(tt.line, tt.streamType)
+
+			// Verify JSON is valid
+			assert.True(t, json.Valid([]byte(result)), "Output should be valid JSON")
+
+			// Run custom validation
+			tt.validate(t, result)
+		})
+	}
+}
+
+// TestFormatLine_StructuredSanitization tests structured output with special characters.
+func TestFormatLine_StructuredSanitization(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		Prefix: config.PrefixConfig{
+			Timestamp: config.TimestampConfig{
+				Format: "%Y-%m-%d",
+				UTC:    false,
+			},
+			User: config.UserConfig{
+				Enabled: true,
+				Format:  "username",
+			},
+			PID: config.PIDConfig{
+				Enabled: true,
+				Format:  "decimal",
+			},
+		},
+		Output: config.OutputConfig{
+			Format: "structured",
+		},
+		LogLevel: config.LogLevelConfig{
+			DefaultStdout: "INFO",
+			DefaultStderr: "ERROR",
+			Detection: config.DetectionConfig{
+				Enabled: false,
+			},
+		},
+	}
+
+	formatter, err := New(cfg)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		line       string
+		streamType processor.StreamType
+		validate   func(*testing.T, string)
+	}{
+		{
+			name:       "message with spaces",
+			line:       "message with spaces",
+			streamType: processor.StreamStdout,
+			validate: func(t *testing.T, result string) {
+				assert.Contains(t, result, `message="message with spaces"`)
+			},
+		},
+		{
+			name:       "message with quotes",
+			line:       `message with "quotes"`,
+			streamType: processor.StreamStdout,
+			validate: func(t *testing.T, result string) {
+				// Message should be properly quoted and escaped
+				assert.Contains(t, result, `message=`)
+				assert.NotContains(t, result, `message=message with "quotes"`) // Should be quoted
+			},
+		},
+		{
+			name:       "message with newline",
+			line:       "message\nwith\nnewline",
+			streamType: processor.StreamStdout,
+			validate: func(t *testing.T, result string) {
+				// Newlines should be escaped in the message field
+				assert.Contains(t, result, `message=`)
+				assert.Contains(t, result, `\n`) // Should contain escaped newline
+			},
+		},
+		{
+			name:       "message with tab",
+			line:       "message\twith\ttab",
+			streamType: processor.StreamStdout,
+			validate: func(t *testing.T, result string) {
+				assert.Contains(t, result, `message=`)
+				assert.Contains(t, result, `\t`) // Should contain escaped tab
+			},
+		},
+		{
+			name:       "message with backslash",
+			line:       `path\to\file`,
+			streamType: processor.StreamStdout,
+			validate: func(t *testing.T, result string) {
+				assert.Contains(t, result, `message=`)
+				// Backslashes should be escaped
+				assert.Contains(t, result, `\\`)
+			},
+		},
+		{
+			name:       "simple message without special chars",
+			line:       "simple_message",
+			streamType: processor.StreamStdout,
+			validate: func(t *testing.T, result string) {
+				// Simple messages might not need quoting, but should still work
+				assert.Contains(t, result, `message=`)
+			},
+		},
+		{
+			name:       "message with equals sign",
+			line:       "key=value",
+			streamType: processor.StreamStdout,
+			validate: func(t *testing.T, result string) {
+				// Equals signs in message should be properly handled
+				assert.Contains(t, result, `message=`)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := formatter.FormatLine(tt.line, tt.streamType)
+
+			// Verify basic structured format
+			assert.Contains(t, result, "timestamp=")
+			assert.Contains(t, result, "level=")
+			assert.Contains(t, result, "message=")
+
+			// Run custom validation
+			tt.validate(t, result)
+		})
+	}
+}

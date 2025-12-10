@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sgaunet/logwrap/pkg/errors"
+	"github.com/sgaunet/logwrap/pkg/apperrors"
 	"github.com/sgaunet/logwrap/pkg/executor"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -66,7 +66,7 @@ func TestNew_EmptyCommand(t *testing.T) {
 	exec, err := executor.New([]string{})
 	assert.Error(t, err)
 	assert.Nil(t, exec)
-	assert.ErrorIs(t, err, errors.ErrCommandEmpty)
+	assert.ErrorIs(t, err, apperrors.ErrCommandEmpty)
 }
 
 func TestNew_PathTraversal(t *testing.T) {
@@ -97,7 +97,7 @@ func TestNew_PathTraversal(t *testing.T) {
 			exec, err := executor.New(tt.command)
 			assert.Error(t, err)
 			assert.Nil(t, exec)
-			assert.ErrorIs(t, err, errors.ErrCommandPathTraversal)
+			assert.ErrorIs(t, err, apperrors.ErrCommandPathTraversal)
 		})
 	}
 }
@@ -150,7 +150,7 @@ func TestExecutor_StartTwice(t *testing.T) {
 	// Start again - should fail
 	err = exec.Start()
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, errors.ErrExecutorStarted)
+	assert.ErrorIs(t, err, apperrors.ErrExecutorStarted)
 
 	// Clean up
 	_ = exec.Wait()
@@ -170,7 +170,7 @@ func TestExecutor_WaitWithoutStart(t *testing.T) {
 	// Wait without starting should fail
 	err = exec.Wait()
 	assert.Error(t, err)
-	assert.ErrorIs(t, err, errors.ErrExecutorNotStarted)
+	assert.ErrorIs(t, err, apperrors.ErrExecutorNotStarted)
 }
 
 func TestExecutor_NonZeroExitCode(t *testing.T) {
