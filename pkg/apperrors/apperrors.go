@@ -1,4 +1,9 @@
-// Package apperrors defines static errors used throughout the logwrap application.
+// Package apperrors defines sentinel errors used throughout the logwrap
+// application. All errors are package-level variables created with
+// [errors.New], enabling callers to use [errors.Is] for matching.
+//
+// Errors are organized by subsystem: configuration, command line,
+// executor, processor, and security.
 package apperrors
 
 import "errors"

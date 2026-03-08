@@ -1,26 +1,54 @@
-// Package formatter provides log line formatting functionality.
+// Package formatter provides template-based log formatting with level detection.
 //
-// # Template Variables
+// The formatter adds configurable prefixes to log lines including timestamps,
+// log levels, colors, user information, and process IDs. It supports three
+// output formats: text (template-based), JSON, and structured (key=value).
 //
-// The following template variables are available for prefix formatting:
-//   - {{.Timestamp}}: Formatted timestamp (strftime format from config)
-//   - {{.Level}}: Detected log level (INFO, ERROR, WARN, DEBUG)
-//   - {{.User}}: Current username (controlled by user.enabled config)
-//   - {{.PID}}: Process ID (controlled by pid.enabled config)
-//   - {{.Line}}: The original log line content
+// # Template System
+//
+// Prefixes are generated using Go's [text/template] engine with these variables:
+//   - {{.Timestamp}} - Current time formatted using strftime (see below)
+//   - {{.Level}}     - Detected log level (ERROR, WARN, INFO, DEBUG)
+//   - {{.User}}      - Current username, UID, or both (controlled by config)
+//   - {{.PID}}       - Process ID in decimal or hex (controlled by config)
+//   - {{.Line}}      - The original log line content
+//
+// Example template:
+//
+//	[{{.Timestamp}}] {{.Level}} {{.User}}@{{.PID}}:
+//
+// # Timestamp Formatting
+//
+// Timestamps use strftime format (not Go time format), powered by
+// [github.com/itchyny/timefmt-go]:
+//   - Format: %Y-%m-%d %H:%M:%S (Linux date command style)
+//   - Timezone: UTC or local, controlled by config
+//
+// # Log Level Detection
+//
+// Log levels are detected by scanning lines for configurable keywords
+// (case-insensitive). The first matching keyword determines the level.
+// When detection is disabled or no keyword matches, the default level
+// for the stream type (stdout→INFO, stderr→ERROR) is used.
+//
+// # Color Support
+//
+// ANSI color codes can be applied to the prefix and log lines based on
+// log level. Colors are disabled by default and can be configured per
+// level (info, error) and for timestamps.
+//
+// # Concurrency Safety
+//
+// The formatter is safe for concurrent use by multiple goroutines.
+// The [DefaultFormatter] holds only read-only configuration after
+// initialization.
 //
 // # Security Note
 //
-// Some template variables may expose sensitive information in logs:
-//   - {{.User}}: Reveals the current OS username
-//   - {{.PID}}: Reveals the process ID (system information)
-//
-// For public or shared logging environments (CI/CD, dashboards, bug reports),
-// use minimal templates that exclude user and process information:
-//
-//	template: "[{{.Timestamp}}] {{.Level}}: "
-//
-// See examples/public-safe.yaml for a complete privacy-safe configuration.
+// Template variables {{.User}} and {{.PID}} may expose sensitive
+// information. For public or shared logging environments, use minimal
+// templates or disable these fields in configuration. See
+// examples/public-safe.yaml for a privacy-safe configuration.
 package formatter
 
 import (

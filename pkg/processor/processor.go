@@ -1,4 +1,38 @@
-// Package processor provides real-time stream processing functionality.
+// Package processor provides real-time stream processing for command output.
+//
+// The processor captures stdout and stderr from executed commands and processes
+// them line-by-line in real-time using concurrent goroutines. Each line is
+// passed through a [Formatter] before being written to the output.
+//
+// # Architecture
+//
+// The processor uses a pipeline pattern:
+//  1. Accept stdout/stderr readers from the executor
+//  2. Launch one goroutine per stream for concurrent processing
+//  3. Use [bufio.Scanner] for efficient line-by-line reading
+//  4. Pass each line to the formatter with its stream type
+//  5. Write formatted output immediately (no buffering)
+//
+// # Concurrency Model
+//
+// Two goroutines run concurrently, one per stream (stdout and stderr).
+// A [sync.WaitGroup] coordinates completion. Errors from each goroutine
+// are collected in a mutex-protected slice. Context cancellation is
+// checked between lines for responsive shutdown.
+//
+// # Buffer Management
+//
+// Scanner buffer sizes:
+//   - Initial: 64KB (balances memory usage vs syscall overhead)
+//   - Maximum: 1MB (prevents memory exhaustion on very long lines)
+//
+// Lines exceeding 1MB will cause a scanner error for that stream.
+//
+// # Error Handling
+//
+// EOF and closed-pipe errors are expected during normal shutdown and
+// handled gracefully. Scanner errors are collected and returned as a
+// combined error after both streams complete.
 package processor
 
 import (
