@@ -283,6 +283,28 @@ For more development commands, see [CLAUDE.md](CLAUDE.md).
 
 ## Security Considerations
 
+> **Important:** LogWrap is a logging wrapper, not a security sandbox. It does not provide isolation or restrict the commands it executes.
+
+### Security Model
+
+**What LogWrap protects against:**
+- **Path traversal:** Commands containing `..` in paths are rejected
+
+**What LogWrap does NOT protect against:**
+- **Command injection:** Arguments are passed directly to the executed command without sanitization
+- **Privilege escalation:** Commands run with the current user's privileges
+- **Data exfiltration:** All command output is processed and logged as-is
+- **Shell metacharacters:** No filtering of shell special characters
+
+### Best Practices
+
+1. **Never** pass untrusted user input as command arguments to logwrap
+2. **Validate** commands before wrapping them with logwrap
+3. **Review** log output visibility before exposing logs publicly
+4. **Disable** user/PID in templates for public-facing logs (see below)
+5. **Use** [`examples/public-safe.yaml`](examples/public-safe.yaml) as a starting point for shared environments
+6. **Avoid** running logwrap as root unless necessary
+
 ### Information Disclosure
 
 LogWrap's default configuration includes user and process information in output:
@@ -319,14 +341,11 @@ prefix:
 
 See [`examples/public-safe.yaml`](examples/public-safe.yaml) for a complete configuration safe for public/shared logging environments.
 
-**Best practices:**
-1. Review template before public logging
-2. Use minimal templates in CI/CD
-3. Sanitize logs before sharing externally
-4. Consider log retention policies
+### References
 
-**References:**
+- [OWASP Command Injection](https://owasp.org/www-community/attacks/Command_Injection)
 - [OWASP Logging Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html)
+- [CWE-78: OS Command Injection](https://cwe.mitre.org/data/definitions/78.html)
 - [CWE-532: Information Exposure Through Log Files](https://cwe.mitre.org/data/definitions/532.html)
 
 ## Performance
