@@ -1,4 +1,26 @@
 // Package formatter provides log line formatting functionality.
+//
+// # Template Variables
+//
+// The following template variables are available for prefix formatting:
+//   - {{.Timestamp}}: Formatted timestamp (strftime format from config)
+//   - {{.Level}}: Detected log level (INFO, ERROR, WARN, DEBUG)
+//   - {{.User}}: Current username (controlled by user.enabled config)
+//   - {{.PID}}: Process ID (controlled by pid.enabled config)
+//   - {{.Line}}: The original log line content
+//
+// # Security Note
+//
+// Some template variables may expose sensitive information in logs:
+//   - {{.User}}: Reveals the current OS username
+//   - {{.PID}}: Reveals the process ID (system information)
+//
+// For public or shared logging environments (CI/CD, dashboards, bug reports),
+// use minimal templates that exclude user and process information:
+//
+//	template: "[{{.Timestamp}}] {{.Level}}: "
+//
+// See examples/public-safe.yaml for a complete privacy-safe configuration.
 package formatter
 
 import (

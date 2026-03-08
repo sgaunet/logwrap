@@ -1,4 +1,8 @@
 # Basic LogWrap Configuration Example
+#
+# WARNING: Default template includes username and PID in output.
+# For public/shared environments (CI/CD, dashboards), use examples/public-safe.yaml
+# or remove {{.User}} and {{.PID}} from the template.
 
 prefix:
   template: "[{{.Timestamp}}] [{{.Level}}] [{{.User}}:{{.PID}}] "

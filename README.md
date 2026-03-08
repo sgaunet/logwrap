@@ -230,6 +230,7 @@ See the `examples/` directory for:
 - `basic.yaml` - Standard configuration with all features
 - `minimal.yaml` - Minimal setup with just timestamps
 - `advanced.yaml` - Advanced setup with UTC times and extended keywords
+- `public-safe.yaml` - Privacy-safe configuration for public/shared environments
 - `test_commands.sh` - Script with various test commands
 
 ## Architecture
@@ -279,6 +280,54 @@ task snapshot
 ```
 
 For more development commands, see [CLAUDE.md](CLAUDE.md).
+
+## Security Considerations
+
+### Information Disclosure
+
+LogWrap's default configuration includes user and process information in output:
+
+```
+[2024-01-15 14:30:00] INFO alice@12345: Application started
+                            ^^^^^ ^^^^^
+                         username  PID
+```
+
+**When this matters:**
+- CI/CD logs exposed publicly (GitHub Actions, GitLab CI)
+- Logs sent to shared dashboards (Splunk, ELK, Datadog)
+- Error logs included in bug reports
+- Logs stored in cloud services
+
+**How to disable:**
+
+**CLI:**
+```bash
+# Use template without user/PID variables
+logwrap -template '[{{.Timestamp}}] {{.Level}}: ' -- command
+```
+
+**Config file:**
+```yaml
+prefix:
+  template: "[{{.Timestamp}}] {{.Level}}: "
+  user:
+    enabled: false
+  pid:
+    enabled: false
+```
+
+See [`examples/public-safe.yaml`](examples/public-safe.yaml) for a complete configuration safe for public/shared logging environments.
+
+**Best practices:**
+1. Review template before public logging
+2. Use minimal templates in CI/CD
+3. Sanitize logs before sharing externally
+4. Consider log retention policies
+
+**References:**
+- [OWASP Logging Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html)
+- [CWE-532: Information Exposure Through Log Files](https://cwe.mitre.org/data/definitions/532.html)
 
 ## Performance
 
