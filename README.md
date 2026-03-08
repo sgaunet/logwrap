@@ -168,6 +168,28 @@ LogWrap automatically detects log levels based on configurable keywords:
 - **DEBUG**: Lines containing "DEBUG", "TRACE"
 - **INFO**: Lines containing "INFO" or default for stdout
 
+### Configuration Validation
+
+LogWrap validates all configuration before running. Invalid values produce descriptive errors listing the accepted options.
+
+**What gets validated:**
+
+| Field | Valid Values | Notes |
+|-------|-------------|-------|
+| Output format | `text`, `json`, `structured` | |
+| Log levels | `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL` | Uppercase or lowercase only, no mixed case |
+| Colors | `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white`, `none` | Case-insensitive |
+| User format | `username`, `uid`, `full` | |
+| PID format | `decimal`, `hex` | |
+| Timestamp format | Any valid strftime string | Validated by round-trip format/parse |
+| Config file path | `.yaml` or `.yml` extension | Path traversal (`..`) is rejected |
+
+**Keyword rules:**
+- Each keyword map key must be a valid log level
+- Empty keyword arrays are rejected — if a level is listed, it must have at least one keyword
+- Empty strings in keyword arrays are rejected
+- Keywords cannot be provided when detection is disabled
+
 ## Examples
 
 ### Basic Usage

@@ -10,7 +10,14 @@ import (
 	"github.com/sgaunet/logwrap/pkg/apperrors"
 )
 
-// Validate checks if the configuration is valid and returns an error if not.
+// Validate checks the entire configuration and returns the first error found.
+//
+// Validation follows a fail-fast strategy: it stops at the first error rather
+// than collecting all errors. This keeps error messages actionable — users fix
+// one issue at a time.
+//
+// Validation order: prefix → output → log level. Within prefix validation,
+// sub-fields are checked in order: template → timestamp → colors → user → PID.
 func (c *Config) Validate() error {
 	if err := c.validatePrefix(); err != nil {
 		return fmt.Errorf("prefix configuration error: %w", err)
@@ -27,6 +34,11 @@ func (c *Config) Validate() error {
 	return nil
 }
 
+// validatePrefix validates all prefix-related configuration.
+//
+// It requires a non-empty template, then validates sub-fields in order:
+// timestamp format, colors, user format, and PID format. Returns the first
+// error encountered.
 func (c *Config) validatePrefix() error {
 	if c.Prefix.Template == "" {
 		return apperrors.ErrTemplateEmpty
@@ -51,6 +63,14 @@ func (c *Config) validatePrefix() error {
 	return nil
 }
 
+// validateTimestamp validates the strftime timestamp format string.
+//
+// Validation uses a round-trip strategy: the format is used to format the
+// current time, then the result is parsed back using the same format. If the
+// parse fails, the format string contains invalid strftime directives.
+//
+// An empty format string is rejected. The format must use strftime directives
+// (e.g., %Y-%m-%d %H:%M:%S), not Go time format (e.g., 2006-01-02).
 func (c *Config) validateTimestamp() error {
 	if c.Prefix.Timestamp.Format == "" {
 		return apperrors.ErrTimestampFormatEmpty
@@ -67,6 +87,11 @@ func (c *Config) validateTimestamp() error {
 	return nil
 }
 
+// validateColors validates color names for info, error, and timestamp fields.
+//
+// Valid colors: black, red, green, yellow, blue, magenta, cyan, white, none.
+// An empty string is also accepted (treated as no color override).
+// Matching is case-insensitive: "Red", "RED", and "red" are all valid.
 func (c *Config) validateColors() error {
 	validColors := map[string]bool{
 		"black":   true,
@@ -100,6 +125,12 @@ func (c *Config) validateColors() error {
 	return nil
 }
 
+// validateUser validates the user display format.
+//
+// Valid formats:
+//   - "username": displays the login name (e.g., "alice")
+//   - "uid": displays the numeric user ID (e.g., "1000")
+//   - "full": displays both as username(uid) (e.g., "alice(1000)")
 func (c *Config) validateUser() error {
 	validFormats := []string{"username", "uid", "full"}
 
@@ -111,6 +142,11 @@ func (c *Config) validateUser() error {
 		apperrors.ErrInvalidUserFormat, c.Prefix.User.Format, strings.Join(validFormats, ", "))
 }
 
+// validatePID validates the process ID display format.
+//
+// Valid formats:
+//   - "decimal": displays PID as a decimal number (e.g., "1234")
+//   - "hex": displays PID as a hexadecimal number (e.g., "0x4d2")
 func (c *Config) validatePID() error {
 	validFormats := []string{"decimal", "hex"}
 
@@ -122,6 +158,9 @@ func (c *Config) validatePID() error {
 		apperrors.ErrInvalidPIDFormat, c.Prefix.PID.Format, strings.Join(validFormats, ", "))
 }
 
+// validateOutput validates the output format setting.
+//
+// Valid formats: "text", "json", "structured".
 func (c *Config) validateOutput() error {
 	validFormats := []string{"text", "json", "structured"}
 
@@ -133,6 +172,17 @@ func (c *Config) validateOutput() error {
 	return nil
 }
 
+// validateLogLevel validates log level defaults and detection keyword rules.
+//
+// Valid log levels: TRACE, DEBUG, INFO, WARN, ERROR, FATAL. Levels accept
+// exact uppercase (e.g., "INFO") or exact lowercase (e.g., "info") only —
+// mixed case like "Info" is rejected.
+//
+// Detection keyword rules:
+//   - If detection is disabled, keywords must not be provided (conflicting config)
+//   - Each keyword map key must be a valid log level
+//   - Empty keyword arrays are rejected — if a level is listed, it must have keywords
+//   - Empty strings within keyword arrays are rejected
 func (c *Config) validateLogLevel() error {
 	validLevels := []string{"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"}
 
@@ -172,6 +222,11 @@ func (c *Config) validateLogLevel() error {
 	return nil
 }
 
+// isValidLogLevel checks whether a level string matches one of the valid levels.
+//
+// It accepts exact uppercase (e.g., "INFO") or exact lowercase (e.g., "info").
+// Mixed case like "Info" or "iNFO" is not accepted. This strict matching avoids
+// ambiguity while supporting both common conventions.
 func isValidLogLevel(level string, validLevels []string) bool {
 	// Check for exact uppercase match
 	if slices.Contains(validLevels, level) {

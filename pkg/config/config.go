@@ -28,10 +28,24 @@
 //
 // All configuration is validated before use via [Config.Validate]:
 //   - Strftime format: round-trip format/parse testing
-//   - Log levels: must be ERROR, WARN, INFO, or DEBUG
+//   - Log levels: must be TRACE, DEBUG, INFO, WARN, ERROR, or FATAL
 //   - Output format: must be text, json, or structured
 //   - Colors: validated against known color names when enabled
 //   - File paths: path traversal protection and extension validation
+//
+// # Validation Strategy
+//
+// The validation system follows these design principles:
+//
+//   - Fail-fast: validation stops at the first error and returns it. This
+//     keeps error messages clear and actionable.
+//   - Explicit over implicit: invalid values produce errors rather than being
+//     silently corrected. For example, an unknown color name is rejected rather
+//     than falling back to a default.
+//   - Deterministic order: fields are validated in a fixed order
+//     (prefix → output → log level) so that errors are reproducible.
+//   - Descriptive errors: error messages include the invalid value and list
+//     all valid options, so users can fix issues without consulting documentation.
 //
 // # Security
 //
@@ -268,6 +282,11 @@ func FindConfigFile() string {
 	return ""
 }
 
+// validateConfigPath validates that a configuration file path is safe to read.
+//
+// Security checks:
+//   - Path traversal: rejects paths containing ".." after filepath.Clean
+//   - File type: only .yaml and .yml extensions are accepted (case-insensitive)
 func validateConfigPath(configFile string) error {
 	// Prevent path traversal attacks
 	cleaned := filepath.Clean(configFile)
