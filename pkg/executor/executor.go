@@ -1,4 +1,39 @@
-// Package executor provides command execution functionality with stream capture.
+// Package executor provides secure command execution with stream capture.
+//
+// The executor spawns processes and captures their stdout/stderr streams
+// for real-time processing by the processor package. It handles process
+// lifecycle management, signal forwarding, and exit code preservation.
+//
+// # Security Model
+//
+// The executor provides minimal security validation. See [validateCommand]
+// for details on what is and is not validated. Users must validate commands
+// before passing them to logwrap.
+//
+// # Process Lifecycle
+//
+//  1. Validate command path (path traversal check)
+//  2. Create [exec.Cmd] with context for cancellation
+//  3. Set up stdout/stderr pipes
+//  4. Start process via [Executor.Start]
+//  5. Caller reads pipes via [Executor.GetStreams]
+//  6. Wait for completion via [Executor.Wait]
+//  7. Release resources via [Executor.Cleanup]
+//
+// # Signal Handling
+//
+// The executor listens for SIGINT, SIGTERM, and SIGQUIT and forwards
+// them to the child process. This ensures the wrapped command receives
+// the same signals as logwrap itself.
+//
+// # Exit Code Preservation
+//
+// The executor preserves the exact exit code from the wrapped command:
+//   - Success (0) → returns 0
+//   - Failure (N) → returns N
+//   - Signal termination → returns 128 + signal number
+//
+// Non-exit errors (e.g., command not found) are returned as Go errors.
 package executor
 
 import (

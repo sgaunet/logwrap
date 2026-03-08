@@ -1,4 +1,43 @@
-// Package config provides configuration management for the logwrap application.
+// Package config provides configuration management for logwrap.
+//
+// The config package handles YAML configuration file parsing, CLI flag parsing,
+// configuration merging, and validation.
+//
+// # Configuration Sources
+//
+// Configuration is loaded from multiple sources with this precedence
+// (highest to lowest):
+//  1. CLI flags (highest priority)
+//  2. Config file specified via -config flag
+//  3. ./logwrap.yaml or ./logwrap.yml (current directory)
+//  4. ~/.config/logwrap/config.yaml
+//  5. ~/.logwrap.yaml
+//  6. Built-in defaults (lowest priority)
+//
+// Use [LoadConfig] to load and merge all sources, or [FindConfigFile]
+// to locate a configuration file in standard locations.
+//
+// # Configuration Structure
+//
+// The [Config] struct is organized into sections:
+//   - Prefix: Template, timestamp format, colors, user/PID display
+//   - Output: Format (text, json, structured)
+//   - LogLevel: Default levels and keyword-based detection rules
+//
+// # Validation
+//
+// All configuration is validated before use via [Config.Validate]:
+//   - Strftime format: round-trip format/parse testing
+//   - Log levels: must be ERROR, WARN, INFO, or DEBUG
+//   - Output format: must be text, json, or structured
+//   - Colors: validated against known color names when enabled
+//   - File paths: path traversal protection and extension validation
+//
+// # Security
+//
+// Configuration file loading includes security measures:
+//   - Path traversal prevention (rejects paths containing "..")
+//   - File type validation (only .yaml/.yml files accepted)
 package config
 
 import (
