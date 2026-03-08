@@ -1,0 +1,31 @@
+# Public-Safe LogWrap Configuration
+# Configuration safe for public/shared logging environments (CI/CD, dashboards, bug reports).
+# Does not include user or process information in output.
+
+prefix:
+  template: "[{{.Timestamp}}] {{.Level}}: "
+  timestamp:
+    # ISO 8601 format for consistency and machine-readability
+    format: "%Y-%m-%dT%H:%M:%S%z"
+    utc: true
+  colors:
+    enabled: false
+  # Explicitly disable user/PID to prevent information disclosure
+  user:
+    enabled: false
+  pid:
+    enabled: false
+
+output:
+  format: "text"
+
+log_level:
+  default_stdout: "INFO"
+  default_stderr: "ERROR"
+  detection:
+    enabled: true
+    keywords:
+      error: ["ERROR", "FATAL", "PANIC"]
+      warn: ["WARN", "WARNING"]
+      debug: ["DEBUG", "TRACE"]
+      info: ["INFO"]

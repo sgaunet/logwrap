@@ -54,21 +54,20 @@ type Processor struct {
 // Option defines a function that configures a Processor.
 type Option func(*Processor)
 
-// WithContext sets a custom context for the processor.
+// WithContext sets a cancellable context for the processor.
+// The cancel function is stored and called when Stop() is invoked.
 func WithContext(ctx context.Context) Option {
 	return func(p *Processor) {
-		_, p.cancel = context.WithCancel(ctx)
+		_, p.cancel = context.WithCancel(ctx) //nolint:gosec // G118 - cancel is called via Stop()
 	}
 }
 
 // New creates a new Processor with the given formatter and output writer.
 func New(formatter Formatter, output io.Writer, opts ...Option) *Processor {
-	_, cancel := context.WithCancel(context.Background())
-
 	p := &Processor{
 		formatter: formatter,
 		output:    output,
-		cancel:    cancel,
+		cancel:    func() {},
 		errors:    make([]error, 0),
 	}
 
