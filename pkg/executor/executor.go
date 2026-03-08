@@ -186,16 +186,21 @@ func (e *Executor) setupSignalHandling() {
 	}()
 }
 
+// validateCommand performs minimal security validation on the command path.
+//
+// Security Model:
+//   - Prevents path traversal attacks using ".." in command paths
+//   - Does NOT prevent command injection via arguments
+//   - Does NOT restrict access to system binaries
+//   - Does NOT filter shell metacharacters
+//
+// Commands run with the current user's privileges. Callers are responsible
+// for validating commands before passing them to logwrap.
 func validateCommand(command string) error {
-	// Prevent path traversal
 	cleaned := filepath.Clean(command)
 	if strings.Contains(cleaned, "..") {
 		return appErrors.ErrCommandPathTraversal
 	}
-
-	// For security, we could add more validations here
-	// such as checking against an allowlist of commands
-	// For now, we just prevent obvious path traversal
 
 	return nil
 }
