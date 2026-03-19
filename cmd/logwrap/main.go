@@ -41,6 +41,7 @@ Options:
   -utc                Use UTC timestamps (default false)
   -colors             Enable colored output (default false)
   -format string      Output format: text, json, structured (default "text")
+  -validate           Validate configuration and exit (no command needed)
   -help               Show this help message
   -version            Show version information
 
@@ -70,6 +71,8 @@ Examples:
   logwrap -utc -colors make test
   logwrap -template "[{{.Timestamp}}] " ls -la
   logwrap -template "[{{.Level}}] [{{.User}}:{{.PID}}] " -- sh -c "echo stdout; echo stderr >&2"
+  logwrap -validate
+  logwrap -validate -config myconfig.yaml
 
 Configuration:
   LogWrap looks for configuration files in the following order:
@@ -106,6 +109,10 @@ func main() {
 		os.Exit(0)
 	}
 
+	if hasFlag(args, "-validate") {
+		os.Exit(validateConfig(args))
+	}
+
 	if len(command) == 0 {
 		fmt.Fprintf(os.Stderr, "Error: no command specified\n\n%s\n", usage)
 		os.Exit(1)
@@ -119,6 +126,49 @@ func main() {
 	}
 
 	os.Exit(run(cfg, command))
+}
+
+func validateConfig(args []string) int {
+	// Filter out -validate before passing to LoadConfig, since it's
+	// not a config flag and would be rejected by the flag parser.
+	var filteredArgs []string
+	for _, arg := range args {
+		if arg != "-validate" {
+			filteredArgs = append(filteredArgs, arg)
+		}
+	}
+	args = filteredArgs
+
+	configFile := getConfigFile(args)
+
+	source := configFile
+	if source == "" {
+		source = "(built-in defaults)"
+	}
+
+	cfg, err := config.LoadConfig(configFile, args)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Configuration validation failed\n\nError: %v\n", err)
+		if configFile != "" {
+			fmt.Fprintf(os.Stderr, "  in file: %s\n", configFile)
+		}
+		return 1
+	}
+
+	_, _ = fmt.Fprintf(os.Stdout, "Configuration is valid\n\n")
+	_, _ = fmt.Fprintf(os.Stdout, "Loaded from: %s\n\n", source)
+	_, _ = fmt.Fprintf(os.Stdout, "Settings:\n")
+	_, _ = fmt.Fprintf(os.Stdout, "  Output format:    %s\n", cfg.Output.Format)
+	_, _ = fmt.Fprintf(os.Stdout, "  Template:         %s\n", cfg.Prefix.Template)
+	_, _ = fmt.Fprintf(os.Stdout, "  Timestamp format: %s\n", cfg.Prefix.Timestamp.Format)
+	_, _ = fmt.Fprintf(os.Stdout, "  Timestamp UTC:    %t\n", cfg.Prefix.Timestamp.UTC)
+	_, _ = fmt.Fprintf(os.Stdout, "  Colors:           %t\n", cfg.Prefix.Colors.Enabled)
+	_, _ = fmt.Fprintf(os.Stdout, "  User:             %t (%s)\n", cfg.Prefix.User.Enabled, cfg.Prefix.User.Format)
+	_, _ = fmt.Fprintf(os.Stdout, "  PID:              %t (%s)\n", cfg.Prefix.PID.Enabled, cfg.Prefix.PID.Format)
+	_, _ = fmt.Fprintf(os.Stdout, "  Default stdout:   %s\n", cfg.LogLevel.DefaultStdout)
+	_, _ = fmt.Fprintf(os.Stdout, "  Default stderr:   %s\n", cfg.LogLevel.DefaultStderr)
+	_, _ = fmt.Fprintf(os.Stdout, "  Detection:        %t\n", cfg.LogLevel.Detection.Enabled)
+	return 0
 }
 
 func parseArgs(args []string) ([]string, []string, error) {
