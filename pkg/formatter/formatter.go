@@ -67,6 +67,13 @@ import (
 	"github.com/sgaunet/logwrap/pkg/processor"
 )
 
+const (
+	// estimatedPrefixLen is the estimated size of a formatted prefix for builder pre-allocation.
+	estimatedPrefixLen = 64
+	// estimatedStructuredLen is the estimated overhead of structured format key=value pairs.
+	estimatedStructuredLen = 128
+)
+
 // DefaultFormatter provides the default implementation of log line formatting.
 // It implements the [processor.Formatter] interface.
 type DefaultFormatter struct {
@@ -142,19 +149,25 @@ func (f *DefaultFormatter) FormatLine(line string, streamType processor.StreamTy
 
 func (f *DefaultFormatter) formatText(data TemplateData) string {
 	var builder strings.Builder
+	builder.Grow(estimatedPrefixLen + len(data.Line))
 	if err := f.template.Execute(&builder, data); err != nil {
 		return data.Line
 	}
 
-	prefix := builder.String()
-
 	if f.config.Prefix.Colors.Enabled {
+		prefix := builder.String()
 		colorizedPrefix := f.colorizePrefix(prefix)
 		colorizedLine := f.colorizeLine(data.Line, data.Level)
-		return colorizedPrefix + colorizedLine
+		var result strings.Builder
+		result.Grow(len(colorizedPrefix) + len(colorizedLine))
+		result.WriteString(colorizedPrefix)
+		result.WriteString(colorizedLine)
+		return result.String()
 	}
 
-	return prefix + data.Line
+	// Write line directly to the existing builder to avoid a second allocation.
+	builder.WriteString(data.Line)
+	return builder.String()
 }
 
 func (f *DefaultFormatter) formatJSON(data TemplateData) string {
@@ -179,18 +192,24 @@ func (f *DefaultFormatter) formatJSON(data TemplateData) string {
 }
 
 func (f *DefaultFormatter) formatStructured(data TemplateData) string {
-	parts := []string{
-		"timestamp=" + quoteIfNeeded(data.Timestamp),
-		"level=" + quoteIfNeeded(data.Level),
-	}
+	var sb strings.Builder
+	sb.Grow(estimatedStructuredLen + len(data.Line))
+
+	sb.WriteString("timestamp=")
+	sb.WriteString(quoteIfNeeded(data.Timestamp))
+	sb.WriteString(" level=")
+	sb.WriteString(quoteIfNeeded(data.Level))
 	if f.config.Prefix.User.Enabled {
-		parts = append(parts, "user="+quoteIfNeeded(data.User))
+		sb.WriteString(" user=")
+		sb.WriteString(quoteIfNeeded(data.User))
 	}
 	if f.config.Prefix.PID.Enabled {
-		parts = append(parts, "pid="+quoteIfNeeded(data.PID))
+		sb.WriteString(" pid=")
+		sb.WriteString(quoteIfNeeded(data.PID))
 	}
-	parts = append(parts, "message="+strconv.Quote(data.Line))
-	return strings.Join(parts, " ")
+	sb.WriteString(" message=")
+	sb.WriteString(strconv.Quote(data.Line))
+	return sb.String()
 }
 
 // quoteIfNeeded quotes a string value if it contains special characters.
@@ -329,16 +348,28 @@ func (f *DefaultFormatter) colorizeLine(line, level string) string {
 		return line
 	}
 
-	if color != "" && f.colors["reset"] != "" {
-		return color + line + f.colors["reset"]
+	reset := f.colors["reset"]
+	if color != "" && reset != "" {
+		var sb strings.Builder
+		sb.Grow(len(color) + len(line) + len(reset))
+		sb.WriteString(color)
+		sb.WriteString(line)
+		sb.WriteString(reset)
+		return sb.String()
 	}
 
 	return line
 }
 
 func (f *DefaultFormatter) applyTimestampColor(text, color string) string {
-	if color != "" && f.colors["reset"] != "" {
-		return color + text + f.colors["reset"]
+	reset := f.colors["reset"]
+	if color != "" && reset != "" {
+		var sb strings.Builder
+		sb.Grow(len(color) + len(text) + len(reset))
+		sb.WriteString(color)
+		sb.WriteString(text)
+		sb.WriteString(reset)
+		return sb.String()
 	}
 	return text
 }
