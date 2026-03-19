@@ -41,6 +41,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -89,6 +90,7 @@ func New(command []string) (*Executor, error) {
 		return cmd.Process.Signal(syscall.SIGTERM)
 	}
 	cmd.WaitDelay = gracefulStopDelay
+	cmd.Stdin = os.Stdin
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
