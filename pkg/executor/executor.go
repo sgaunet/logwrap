@@ -22,9 +22,9 @@
 //
 // # Signal Handling
 //
-// The executor listens for SIGINT, SIGTERM, and SIGQUIT and forwards
-// them to the child process. This ensures the wrapped command receives
-// the same signals as logwrap itself.
+// When the executor's context is cancelled (via [Executor.Stop]),
+// the child process receives SIGTERM. If it doesn't exit within
+// [gracefulStopDelay], Go's stdlib escalates to SIGKILL.
 //
 // # Exit Code Preservation
 //
@@ -45,8 +45,18 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	appErrors "github.com/sgaunet/logwrap/pkg/apperrors"
+)
+
+const (
+	// gracefulStopDelay is the time to wait after sending SIGTERM (via context
+	// cancellation) before the Go runtime escalates to SIGKILL.
+	gracefulStopDelay = 5 * time.Second
+
+	// signalExitCodeBase is the UNIX convention base for signal exit codes (128 + signal number).
+	signalExitCodeBase = 128
 )
 
 // Executor manages command execution with stream capture and signal handling.
@@ -72,6 +82,13 @@ func New(command []string) (*Executor, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(ctx, command[0], command[1:]...) // #nosec G204 - command is validated above
+
+	// Send SIGTERM (not SIGKILL) when the context is cancelled.
+	// If the process doesn't exit within WaitDelay, Go escalates to SIGKILL.
+	cmd.Cancel = func() error {
+		return cmd.Process.Signal(syscall.SIGTERM)
+	}
+	cmd.WaitDelay = gracefulStopDelay
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -127,13 +144,27 @@ func (e *Executor) Wait() error {
 	if err != nil {
 		var exitError *exec.ExitError
 		if errors.As(err, &exitError) {
-			e.exitCode = exitError.ExitCode()
+			e.exitCode = resolveExitCode(exitError)
 		} else {
 			return fmt.Errorf("command execution failed: %w", err)
 		}
 	}
 
 	return nil
+}
+
+// resolveExitCode extracts the exit code from an ExitError.
+// When the process was killed by a signal, ExitCode() returns -1;
+// in that case, compute 128 + signal number per UNIX convention.
+func resolveExitCode(exitError *exec.ExitError) int {
+	code := exitError.ExitCode()
+	if code != -1 {
+		return code
+	}
+	if status, ok := exitError.Sys().(syscall.WaitStatus); ok && status.Signaled() {
+		return signalExitCodeBase + int(status.Signal())
+	}
+	return code
 }
 
 // GetStreams returns the stdout and stderr readers for the command.
@@ -152,29 +183,22 @@ func (e *Executor) IsFinished() bool {
 }
 
 // Stop gracefully terminates the command using SIGTERM.
+// Context cancellation triggers the custom Cancel function (SIGTERM).
+// If the process doesn't exit within WaitDelay, Go escalates to SIGKILL.
 func (e *Executor) Stop() error {
 	if !e.isStarted || e.isFinished {
 		return nil
 	}
 
 	e.cancel()
-
-	if e.cmd.Process != nil {
-		if err := e.cmd.Process.Signal(syscall.SIGTERM); err != nil {
-			return fmt.Errorf("failed to send SIGTERM: %w", err)
-		}
-	}
-
 	return nil
 }
 
-// Kill forcefully terminates the command.
+// Kill forcefully terminates the command with SIGKILL.
 func (e *Executor) Kill() error {
 	if !e.isStarted || e.isFinished {
 		return nil
 	}
-
-	e.cancel()
 
 	if e.cmd.Process != nil {
 		if err := e.cmd.Process.Kill(); err != nil {
@@ -182,6 +206,7 @@ func (e *Executor) Kill() error {
 		}
 	}
 
+	e.cancel()
 	return nil
 }
 

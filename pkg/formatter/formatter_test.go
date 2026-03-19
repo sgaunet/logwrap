@@ -146,7 +146,7 @@ func TestFormatLine_TextFormat(t *testing.T) {
 			name:       "empty line",
 			line:       "",
 			streamType: processor.StreamStdout,
-			expected:   "",
+			expected:   "[INFO] ",
 		},
 	}
 
@@ -869,9 +869,9 @@ func TestFormatLine_EmptyLine(t *testing.T) {
 	formatter, err := New(cfg)
 	require.NoError(t, err)
 
-	// Empty lines should be returned as-is
+	// Empty lines should be formatted with prefix
 	result := formatter.FormatLine("", processor.StreamStdout)
-	assert.Equal(t, "", result)
+	assert.Equal(t, "[INFO] ", result)
 }
 
 func TestFormatLine_TemplateExecutionError(t *testing.T) {
@@ -1158,4 +1158,143 @@ func TestFormatLine_StructuredSanitization(t *testing.T) {
 			tt.validate(t, result)
 		})
 	}
+}
+
+func TestNew_InvalidTemplateVariable(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		template string
+	}{
+		{
+			name:     "completely invalid field",
+			template: "[{{.Invalid}}] ",
+		},
+		{
+			name:     "mixed valid and invalid",
+			template: "[{{.Timestamp}}] [{{.Nonexistent}}] ",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := &config.Config{
+				Prefix: config.PrefixConfig{
+					Template: tt.template,
+					Timestamp: config.TimestampConfig{
+						Format: "%Y-%m-%d",
+					},
+				},
+			}
+
+			formatter, err := New(cfg)
+			assert.Error(t, err)
+			assert.Nil(t, formatter)
+			assert.Contains(t, err.Error(), "invalid template")
+		})
+	}
+}
+
+func TestFormatLine_EmptyLine_JSON(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		Prefix: config.PrefixConfig{
+			Template: "[{{.Level}}] ",
+			Timestamp: config.TimestampConfig{
+				Format: "%Y-%m-%d",
+				UTC:    true,
+			},
+			User: config.UserConfig{Enabled: true, Format: "username"},
+			PID:  config.PIDConfig{Enabled: true, Format: "decimal"},
+		},
+		Output: config.OutputConfig{Format: "json"},
+		LogLevel: config.LogLevelConfig{
+			DefaultStdout: "INFO",
+			Detection:     config.DetectionConfig{Enabled: false},
+		},
+	}
+
+	formatter, err := New(cfg)
+	require.NoError(t, err)
+
+	result := formatter.FormatLine("", processor.StreamStdout)
+	assert.True(t, json.Valid([]byte(result)), "Empty line JSON output should be valid JSON, got: %s", result)
+
+	var jsonData map[string]any
+	err = json.Unmarshal([]byte(result), &jsonData)
+	require.NoError(t, err)
+	assert.Equal(t, "", jsonData["message"])
+	assert.Equal(t, "INFO", jsonData["level"])
+}
+
+func TestFormatLine_JSON_DisabledUserPID(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		Prefix: config.PrefixConfig{
+			Template: "[{{.Level}}] ",
+			Timestamp: config.TimestampConfig{
+				Format: "%Y-%m-%d",
+				UTC:    true,
+			},
+			User: config.UserConfig{Enabled: false},
+			PID:  config.PIDConfig{Enabled: false},
+		},
+		Output: config.OutputConfig{Format: "json"},
+		LogLevel: config.LogLevelConfig{
+			DefaultStdout: "INFO",
+			Detection:     config.DetectionConfig{Enabled: false},
+		},
+	}
+
+	formatter, err := New(cfg)
+	require.NoError(t, err)
+
+	result := formatter.FormatLine("test message", processor.StreamStdout)
+
+	var jsonData map[string]any
+	err = json.Unmarshal([]byte(result), &jsonData)
+	require.NoError(t, err)
+
+	assert.Equal(t, "INFO", jsonData["level"])
+	assert.Equal(t, "test message", jsonData["message"])
+	assert.Contains(t, jsonData, "timestamp")
+	assert.NotContains(t, jsonData, "user", "user field should be omitted when disabled")
+	assert.NotContains(t, jsonData, "pid", "pid field should be omitted when disabled")
+}
+
+func TestFormatLine_Structured_DisabledUserPID(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		Prefix: config.PrefixConfig{
+			Template: "[{{.Level}}] ",
+			Timestamp: config.TimestampConfig{
+				Format: "%Y-%m-%d",
+				UTC:    true,
+			},
+			User: config.UserConfig{Enabled: false},
+			PID:  config.PIDConfig{Enabled: false},
+		},
+		Output: config.OutputConfig{Format: "structured"},
+		LogLevel: config.LogLevelConfig{
+			DefaultStdout: "INFO",
+			Detection:     config.DetectionConfig{Enabled: false},
+		},
+	}
+
+	formatter, err := New(cfg)
+	require.NoError(t, err)
+
+	result := formatter.FormatLine("test message", processor.StreamStdout)
+
+	assert.Contains(t, result, "timestamp=")
+	assert.Contains(t, result, "level=INFO")
+	assert.Contains(t, result, "message=")
+	assert.NotContains(t, result, "user=", "user field should be omitted when disabled")
+	assert.NotContains(t, result, "pid=", "pid field should be omitted when disabled")
 }

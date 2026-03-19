@@ -54,6 +54,7 @@ package formatter
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/user"
 	"strconv"
@@ -96,6 +97,15 @@ func New(cfg *config.Config) (*DefaultFormatter, error) {
 		return nil, fmt.Errorf("failed to parse template: %w", err)
 	}
 
+	// Validate template fields by executing with test data.
+	// Go's template parser validates syntax but not field names, so
+	// {{.Invalid}} parses fine but fails at Execute time. Catch this
+	// at startup rather than silently producing unprefixed output.
+	testData := TemplateData{Timestamp: "t", Level: "t", User: "t", PID: "t", Line: "t"}
+	if err := tmpl.Execute(io.Discard, testData); err != nil {
+		return nil, fmt.Errorf("invalid template: %w", err)
+	}
+
 	userInfo, err := user.Current()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user info: %w", err)
@@ -122,10 +132,6 @@ func New(cfg *config.Config) (*DefaultFormatter, error) {
 
 // FormatLine formats a log line according to the configured output format.
 func (f *DefaultFormatter) FormatLine(line string, streamType processor.StreamType) string {
-	if line == "" {
-		return line
-	}
-
 	data := f.buildTemplateData(line, streamType)
 
 	switch f.config.Output.Format {
@@ -159,9 +165,13 @@ func (f *DefaultFormatter) formatJSON(data TemplateData) string {
 	jsonData := map[string]any{
 		"timestamp": data.Timestamp,
 		"level":     data.Level,
-		"user":      data.User,
-		"pid":       data.PID,
 		"message":   data.Line,
+	}
+	if f.config.Prefix.User.Enabled {
+		jsonData["user"] = data.User
+	}
+	if f.config.Prefix.PID.Enabled {
+		jsonData["pid"] = data.PID
 	}
 
 	jsonBytes, err := json.Marshal(jsonData)
@@ -173,12 +183,18 @@ func (f *DefaultFormatter) formatJSON(data TemplateData) string {
 }
 
 func (f *DefaultFormatter) formatStructured(data TemplateData) string {
-	return fmt.Sprintf("timestamp=%s level=%s user=%s pid=%s message=%s",
-		quoteIfNeeded(data.Timestamp),
-		quoteIfNeeded(data.Level),
-		quoteIfNeeded(data.User),
-		quoteIfNeeded(data.PID),
-		strconv.Quote(data.Line)) // Always quote message field using strconv.Quote for proper escaping
+	parts := []string{
+		"timestamp=" + quoteIfNeeded(data.Timestamp),
+		"level=" + quoteIfNeeded(data.Level),
+	}
+	if f.config.Prefix.User.Enabled {
+		parts = append(parts, "user="+quoteIfNeeded(data.User))
+	}
+	if f.config.Prefix.PID.Enabled {
+		parts = append(parts, "pid="+quoteIfNeeded(data.PID))
+	}
+	parts = append(parts, "message="+strconv.Quote(data.Line))
+	return strings.Join(parts, " ")
 }
 
 // quoteIfNeeded quotes a string value if it contains special characters.
