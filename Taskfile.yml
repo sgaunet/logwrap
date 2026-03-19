@@ -2,6 +2,12 @@
 version: '3'
 vars:
   BINFILE: logwrap
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo "development"
+  COMMIT:
+    sh: git rev-parse HEAD 2>/dev/null || echo "unknown"
+  BUILD_DATE:
+    sh: date -u +%Y-%m-%dT%H:%M:%SZ
 
 tasks:
 
@@ -35,8 +41,7 @@ tasks:
   build:
     desc: "Build binary"
     cmds:
-      - CGO_ENABLED=0 go build -o {{ .BINFILE }} cmd/logwrap/*.go
-    # silent: true
+      - CGO_ENABLED=0 go build -ldflags "-X main.version={{.VERSION}} -X main.commit={{.COMMIT}} -X main.buildDate={{.BUILD_DATE}}" -o {{ .BINFILE }} cmd/logwrap/*.go
 
   snapshot:
     desc: "Create snapshot"

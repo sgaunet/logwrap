@@ -7,7 +7,10 @@ builds:
   - env:
       - CGO_ENABLED=0
     ldflags:
-      - -X github.com/sgaunet/logwrap/cmd.version={{.Version}}
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.buildDate={{.Date}}
     goos:
       - linux
       - darwin
