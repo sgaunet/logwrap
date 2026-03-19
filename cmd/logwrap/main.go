@@ -17,8 +17,14 @@ import (
 	"github.com/sgaunet/logwrap/pkg/processor"
 )
 
+// Build-time variables injected via -ldflags.
+var (
+	version   = "development"
+	commit    = "unknown"
+	buildDate = "unknown"
+)
+
 const (
-	version                = "development"
 	exitCodeSIGINT         = 130 // 128 + 2 (SIGINT)
 	exitCodeSIGTERM        = 143 // 128 + 15 (SIGTERM)
 	gracefulShutdownTimeout = 5 * time.Second
@@ -96,7 +102,7 @@ func main() {
 	}
 
 	if hasFlag(args, "-version") {
-		_, _ = fmt.Fprintf(os.Stdout, "logwrap version %s\n", version)
+		_, _ = fmt.Fprintf(os.Stdout, "logwrap version %s\n  commit: %s\n  built:  %s\n", version, commit, buildDate)
 		os.Exit(0)
 	}
 
