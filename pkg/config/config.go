@@ -70,6 +70,16 @@ type Config struct {
 	Prefix   PrefixConfig   `yaml:"prefix"`
 	Output   OutputConfig   `yaml:"output"`
 	LogLevel LogLevelConfig `yaml:"log_level"`
+	Filter   FilterConfig   `yaml:"filter"`
+}
+
+// FilterConfig contains configuration for output line filtering.
+type FilterConfig struct {
+	Enabled         bool     `yaml:"enabled"`
+	ExcludePatterns []string `yaml:"exclude_patterns"`
+	IncludePatterns []string `yaml:"include_patterns"`
+	ExcludeLevels   []string `yaml:"exclude_levels"`
+	IncludeLevels   []string `yaml:"include_levels"`
 }
 
 // PrefixConfig contains configuration for log prefixes.
