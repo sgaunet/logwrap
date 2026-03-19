@@ -94,9 +94,17 @@ type Formatter interface {
 	FormatLine(line string, streamType StreamType) string
 }
 
+// LineFilter is an optional filter that decides whether a raw line should be
+// processed. If ShouldInclude returns false, the line is silently dropped
+// before formatting.
+type LineFilter interface {
+	ShouldInclude(line string) bool
+}
+
 // Processor handles real-time processing of command output streams.
 type Processor struct {
 	formatter Formatter
+	filter    LineFilter
 	output    io.Writer
 	wg        sync.WaitGroup
 	errors    []error
@@ -123,6 +131,14 @@ func WithContext(ctx context.Context) Option {
 			<-derived.Done()
 			close(p.stopCh)
 		}()
+	}
+}
+
+// WithFilter sets a line filter that is checked before formatting.
+// Lines rejected by the filter are silently dropped.
+func WithFilter(f LineFilter) Option {
+	return func(p *Processor) {
+		p.filter = f
 	}
 }
 
@@ -278,6 +294,11 @@ func (p *Processor) processStream(ctx context.Context, stream io.Reader, streamT
 		}
 
 		line := scanner.Text()
+
+		if p.filter != nil && !p.filter.ShouldInclude(line) {
+			continue
+		}
+
 		formattedLine := p.formatter.FormatLine(line, streamType)
 
 		if _, err := p.output.Write([]byte(formattedLine + "\n")); err != nil {

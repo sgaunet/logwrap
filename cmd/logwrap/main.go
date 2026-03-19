@@ -13,6 +13,7 @@ import (
 	"github.com/sgaunet/logwrap/pkg/apperrors"
 	"github.com/sgaunet/logwrap/pkg/config"
 	"github.com/sgaunet/logwrap/pkg/executor"
+	"github.com/sgaunet/logwrap/pkg/filter"
 	"github.com/sgaunet/logwrap/pkg/formatter"
 	"github.com/sgaunet/logwrap/pkg/processor"
 )
@@ -232,7 +233,23 @@ func run(cfg *config.Config, command []string) int {
 		return 1
 	}
 
-	proc := processor.New(form, os.Stdout)
+	var procOpts []processor.Option
+	if cfg.Filter.Enabled {
+		f, fErr := filter.New(filter.Config{
+			Enabled:         cfg.Filter.Enabled,
+			ExcludePatterns: cfg.Filter.ExcludePatterns,
+			IncludePatterns: cfg.Filter.IncludePatterns,
+			ExcludeLevels:   cfg.Filter.ExcludeLevels,
+			IncludeLevels:   cfg.Filter.IncludeLevels,
+		}, cfg.LogLevel.Detection.Keywords)
+		if fErr != nil {
+			fmt.Fprintf(os.Stderr, "Execution error: failed to create filter: %v\n", fErr)
+			return 1
+		}
+		procOpts = append(procOpts, processor.WithFilter(f))
+	}
+
+	proc := processor.New(form, os.Stdout, procOpts...)
 
 	if err := exec.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "Execution error: failed to start command: %v\n", err)
