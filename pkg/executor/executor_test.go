@@ -619,3 +619,79 @@ func TestExecutor_StateTransitions(t *testing.T) {
 	assert.True(t, exec.IsFinished())
 	assert.Equal(t, 0, exec.GetExitCode())
 }
+
+func TestExecutor_SignalExitCode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Signal exit codes not applicable on Windows")
+	}
+
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		signal       string
+		expectedCode int
+	}{
+		{"SIGSEGV", "SEGV", 139},  // 128 + 11
+		{"SIGTERM", "TERM", 143},  // 128 + 15
+		{"SIGABRT", "ABRT", 134}, // 128 + 6
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			exec, err := executor.New([]string{"sh", "-c", "kill -" + tt.signal + " $$"})
+			require.NoError(t, err)
+			t.Cleanup(func() { exec.Cleanup() })
+
+			err = exec.Start()
+			require.NoError(t, err)
+
+			stdout, stderr := exec.GetStreams()
+			go func() { _, _ = io.Copy(io.Discard, stdout) }()
+			go func() { _, _ = io.Copy(io.Discard, stderr) }()
+
+			err = exec.Wait()
+			assert.NoError(t, err)
+			assert.True(t, exec.IsFinished())
+			assert.Equal(t, tt.expectedCode, exec.GetExitCode())
+		})
+	}
+}
+
+func TestExecutor_Stop_SendsSIGTERM(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Signal handling tests not reliable on Windows")
+	}
+
+	t.Parallel()
+
+	markerFile := fmt.Sprintf("%s/sigterm_%d", t.TempDir(), time.Now().UnixNano())
+
+	// Shell script that traps SIGTERM, writes a marker file, then exits.
+	// Using "sleep &; wait" so the trap handler fires immediately on SIGTERM
+	// (wait is interrupted by signals, unlike foreground sleep).
+	script := fmt.Sprintf(`trap 'echo received > %s; exit 0' TERM; sleep 30 & wait`, markerFile)
+	exec, err := executor.New([]string{"sh", "-c", script})
+	require.NoError(t, err)
+	t.Cleanup(func() { exec.Cleanup() })
+
+	err = exec.Start()
+	require.NoError(t, err)
+
+	stdout, stderr := exec.GetStreams()
+	go func() { _, _ = io.Copy(io.Discard, stdout) }()
+	go func() { _, _ = io.Copy(io.Discard, stderr) }()
+
+	// Give the process time to set up the trap
+	time.Sleep(200 * time.Millisecond)
+
+	err = exec.Stop()
+	assert.NoError(t, err)
+
+	_ = exec.Wait()
+
+	// Verify the marker file was created (SIGTERM trap handler ran)
+	assert.FileExists(t, markerFile, "SIGTERM trap should have created marker file")
+}

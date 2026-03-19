@@ -235,10 +235,8 @@ func waitForCommandOrSignal(
 func handleSignalShutdown(exec *executor.Executor, proc *processor.Processor, sig os.Signal, cmdDone chan error) error {
 	fmt.Fprintf(os.Stderr, "\nReceived signal %v, initiating graceful shutdown...\n", sig)
 
-	// Stop the processor first
-	proc.Stop()
-
-	// Try to stop the executor gracefully
+	// Signal the child process first so it can produce cleanup output.
+	// The processor keeps running to capture any final output from the child.
 	if err := exec.Stop(); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to stop executor gracefully: %v\n", err)
 	}
@@ -249,13 +247,15 @@ func handleSignalShutdown(exec *executor.Executor, proc *processor.Processor, si
 
 	select {
 	case cmdErr := <-cmdDone:
-		// Command finished gracefully
+		// Command finished gracefully. Processor will finish naturally
+		// when the child's pipes close.
 		return cmdErr
 	case <-shutdownTimer.C:
 		fmt.Fprintf(os.Stderr, "Shutdown timeout exceeded, forcing kill...\n")
 		if err := exec.Kill(); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to kill process: %v\n", err)
 		}
+		proc.Stop()
 		return <-cmdDone // Wait for process to actually die
 	}
 }
