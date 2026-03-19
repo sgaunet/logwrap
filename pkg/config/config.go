@@ -98,8 +98,11 @@ type TimestampConfig struct {
 }
 
 // ColorsConfig contains color configuration for output.
+// If Theme is set, its colors are applied first, then individual color
+// fields (Info, Error, Timestamp) override the theme values.
 type ColorsConfig struct {
 	Enabled   bool   `yaml:"enabled"`
+	Theme     string `yaml:"theme"`
 	Info      string `yaml:"info"`
 	Error     string `yaml:"error"`
 	Timestamp string `yaml:"timestamp"`
@@ -163,6 +166,14 @@ func LoadConfig(configFile string, args []string) (*Config, error) {
 	}
 
 	applyCLIOverrides(config, flags)
+
+	// Apply color theme if set. Theme provides defaults; explicit color
+	// fields in the config or CLI override theme values.
+	if config.Prefix.Colors.Theme != "" {
+		if err := applyTheme(&config.Prefix.Colors, config.Prefix.Colors.Theme); err != nil {
+			return nil, fmt.Errorf("invalid configuration: %w", err)
+		}
+	}
 
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
