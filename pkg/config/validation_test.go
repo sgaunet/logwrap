@@ -587,19 +587,19 @@ func TestConfig_ValidateTimestamp_InvalidStrftimeFormats(t *testing.T) {
 			name:         "invalid directive %Q",
 			format:       "%Q",
 			expectError:  true,
-			errorMessage: "invalid strftime format",
+			errorMessage: "invalid timestamp format",
 		},
 		{
 			name:         "invalid directive %K",
 			format:       "%K",
 			expectError:  true,
-			errorMessage: "invalid strftime format",
+			errorMessage: "invalid timestamp format",
 		},
 		{
 			name:         "unclosed percent at end",
 			format:       "%Y-%m-%d %",
 			expectError:  true,
-			errorMessage: "invalid strftime format",
+			errorMessage: "invalid timestamp format",
 		},
 	}
 

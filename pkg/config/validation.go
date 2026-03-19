@@ -63,11 +63,66 @@ func (c *Config) validatePrefix() error {
 	return nil
 }
 
+// validStrftimeDirectives lists the strftime directives supported by timefmt-go.
+// Modifiers (-, _, 0) before a directive are also allowed (e.g., %-d, %_H, %0m).
+var validStrftimeDirectives = map[byte]bool{
+	// Date components
+	'Y': true, // 4-digit year (2024)
+	'y': true, // 2-digit year (24)
+	'C': true, // Century (20)
+	'm': true, // Month 01-12
+	'd': true, // Day 01-31
+	'e': true, // Day space-padded ( 1-31)
+	'j': true, // Day of year 001-366
+	'G': true, // ISO year
+	'g': true, // ISO year 2-digit
+	// Time components
+	'H': true, // Hour 24h 00-23
+	'I': true, // Hour 12h 01-12
+	'k': true, // Hour 24h space-padded
+	'l': true, // Hour 12h space-padded
+	'M': true, // Minute 00-59
+	'S': true, // Second 00-59
+	'f': true, // Microseconds
+	's': true, // Seconds since epoch
+	'p': true, // AM/PM
+	'P': true, // am/pm
+	// Weekday
+	'a': true, // Weekday short (Mon)
+	'A': true, // Weekday full (Monday)
+	'u': true, // Weekday number 1=Mon
+	'w': true, // Weekday number 0=Sun
+	// Month name
+	'b': true, // Month short (Jan)
+	'B': true, // Month full (January)
+	'h': true, // Month short (alias for %b)
+	// Week number
+	'U': true, // Week number Sunday start
+	'W': true, // Week number Monday start
+	'V': true, // ISO week number
+	// Timezone
+	'z': true, // Timezone offset (-0700)
+	'Z': true, // Timezone name (UTC)
+	// Composite
+	'c': true, // Locale date and time
+	'D': true, // Equivalent to %m/%d/%y
+	'F': true, // Equivalent to %Y-%m-%d
+	'r': true, // 12-hour time
+	'R': true, // 24-hour time HH:MM
+	'T': true, // 24-hour time HH:MM:SS
+	'x': true, // Locale date
+	'X': true, // Locale time
+	// Special
+	'n': true, // Newline
+	't': true, // Tab
+	'%': true, // Literal %
+}
+
 // validateTimestamp validates the strftime timestamp format string.
 //
-// Validation uses a round-trip strategy: the format is used to format the
-// current time, then the result is parsed back using the same format. If the
-// parse fails, the format string contains invalid strftime directives.
+// Validation is two-phase:
+//  1. Directive check: scan for %X patterns and reject unknown directives
+//  2. Round-trip test: format the current time and parse it back
 //
 // An empty format string is rejected. The format must use strftime directives
 // (e.g., %Y-%m-%d %H:%M:%S), not Go time format (e.g., 2006-01-02).
@@ -76,14 +131,50 @@ func (c *Config) validateTimestamp() error {
 		return apperrors.ErrTimestampFormatEmpty
 	}
 
-	// Validate strftime format by attempting to format and parse
+	// Phase 1: validate directives against whitelist
+	if err := validateStrftimeDirectives(c.Prefix.Timestamp.Format); err != nil {
+		return err
+	}
+
+	// Phase 2: round-trip test for format/parse compatibility
 	now := time.Now()
 	formatted := timefmt.Format(now, c.Prefix.Timestamp.Format)
 	_, err := timefmt.Parse(formatted, c.Prefix.Timestamp.Format)
 	if err != nil {
-		return fmt.Errorf("invalid strftime format '%s': %w", c.Prefix.Timestamp.Format, err)
+		return fmt.Errorf("%w '%s': %w", apperrors.ErrInvalidTimestampFormat,
+			c.Prefix.Timestamp.Format, err)
 	}
 
+	return nil
+}
+
+// validateStrftimeDirectives scans a format string for %X patterns and rejects
+// unknown directives. Modifiers (-, _, 0) before a directive are allowed.
+func validateStrftimeDirectives(format string) error {
+	for i := 0; i < len(format); i++ {
+		if format[i] != '%' {
+			continue
+		}
+		i++ // skip '%'
+		if i >= len(format) {
+			return fmt.Errorf("%w: trailing '%%' in format '%s'",
+				apperrors.ErrInvalidTimestampFormat, format)
+		}
+
+		// Skip optional modifier (-, _, 0)
+		if format[i] == '-' || format[i] == '_' || format[i] == '0' {
+			i++
+			if i >= len(format) {
+				return fmt.Errorf("%w: trailing modifier in format '%s'",
+					apperrors.ErrInvalidTimestampFormat, format)
+			}
+		}
+
+		if !validStrftimeDirectives[format[i]] {
+			return fmt.Errorf("%w: unknown directive '%%%c' in format '%s'",
+				apperrors.ErrInvalidTimestampFormat, format[i], format)
+		}
+	}
 	return nil
 }
 
