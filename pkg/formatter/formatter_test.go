@@ -425,6 +425,51 @@ func TestGetLogLevel(t *testing.T) {
 	}
 }
 
+func TestGetLogLevel_FatalAndTraceKeywordKeys(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		LogLevel: config.LogLevelConfig{
+			DefaultStdout: "INFO",
+			DefaultStderr: "ERROR",
+			Detection: config.DetectionConfig{
+				Enabled: true,
+				Keywords: map[string][]string{
+					"fatal": {"FATAL"},
+					"error": {"ERROR"},
+					"warn":  {"WARN"},
+					"info":  {"INFO"},
+					"debug": {"DEBUG"},
+					"trace": {"TRACE"},
+				},
+			},
+		},
+	}
+
+	formatter, err := New(cfg)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		line     string
+		expected string
+	}{
+		{"FATAL detected", "FATAL: system crash", "FATAL"},
+		{"TRACE detected", "TRACE: entering function", "TRACE"},
+		{"ERROR still works", "ERROR: connection failed", "ERROR"},
+		{"FATAL has priority over ERROR", "FATAL ERROR occurred", "FATAL"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := formatter.getLogLevel(tt.line, processor.StreamStdout)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 func TestGetLogLevel_AmbiguousKeywords_Deterministic(t *testing.T) {
 	t.Parallel()
 

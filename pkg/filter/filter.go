@@ -124,8 +124,8 @@ func (f *Filter) matchesAny(line string, patterns []*regexp.Regexp) bool {
 // detectLevel returns the uppercase level name for a line, or empty string if none detected.
 // Uses the same keyword scanning approach as the formatter but with simplified priority.
 func (f *Filter) detectLevel(lineUpper string) string {
-	// Check levels in a deterministic priority order.
-	priorities := []string{"ERROR", "WARN", "INFO", "DEBUG"}
+	// Check levels in deterministic priority order (most to least severe).
+	priorities := []string{"FATAL", "ERROR", "WARN", "INFO", "DEBUG", "TRACE"}
 	for _, level := range priorities {
 		keywords := f.levelKeywords[level]
 		for _, kw := range keywords {

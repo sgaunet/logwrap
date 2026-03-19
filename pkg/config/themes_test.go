@@ -126,6 +126,49 @@ log_level:
 	assert.Equal(t, "magenta", cfg.Prefix.Colors.Timestamp)
 }
 
+func TestLoadConfig_ThemeWithExplicitColorOverrides(t *testing.T) {
+	t.Parallel()
+
+	yamlContent := `
+prefix:
+  template: "[{{.Level}}] "
+  timestamp:
+    format: "%H:%M:%S"
+  colors:
+    enabled: true
+    theme: "warm"
+    info: cyan
+    error: green
+  user:
+    enabled: false
+    format: "username"
+  pid:
+    enabled: false
+    format: "decimal"
+output:
+  format: "text"
+log_level:
+  default_stdout: "INFO"
+  default_stderr: "ERROR"
+  detection:
+    enabled: true
+    keywords:
+      error: ["ERROR"]
+`
+	tmpDir := t.TempDir()
+	configPath := tmpDir + "/config.yaml"
+	require.NoError(t, writeTestFile(configPath, yamlContent))
+
+	cfg, err := LoadConfig(configPath, nil)
+	require.NoError(t, err)
+
+	// Explicit YAML colors should override theme values
+	assert.Equal(t, "cyan", cfg.Prefix.Colors.Info, "explicit info color should override theme")
+	assert.Equal(t, "green", cfg.Prefix.Colors.Error, "explicit error color should override theme")
+	// Timestamp not set explicitly — should use warm theme's value
+	assert.Equal(t, "magenta", cfg.Prefix.Colors.Timestamp, "non-explicit timestamp should use theme value")
+}
+
 func TestLoadConfig_InvalidTheme(t *testing.T) {
 	t.Parallel()
 

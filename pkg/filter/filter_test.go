@@ -212,3 +212,49 @@ func TestFilter_CaseInsensitiveLevels(t *testing.T) {
 	assert.False(t, f.ShouldInclude("DEBUG: variable dump"))
 	assert.True(t, f.ShouldInclude("ERROR: failed"))
 }
+
+func TestFilter_FatalAndTraceLevels(t *testing.T) {
+	t.Parallel()
+
+	keywords := map[string][]string{
+		"fatal": {"FATAL"},
+		"error": {"ERROR"},
+		"warn":  {"WARN"},
+		"info":  {"INFO"},
+		"debug": {"DEBUG"},
+		"trace": {"TRACE"},
+	}
+
+	t.Run("include_fatal", func(t *testing.T) {
+		t.Parallel()
+
+		f, err := New(Config{IncludeLevels: []string{"FATAL"}}, keywords)
+		require.NoError(t, err)
+
+		assert.True(t, f.ShouldInclude("FATAL: system crash"))
+		assert.False(t, f.ShouldInclude("ERROR: something"))
+		assert.False(t, f.ShouldInclude("INFO: started"))
+	})
+
+	t.Run("include_trace", func(t *testing.T) {
+		t.Parallel()
+
+		f, err := New(Config{IncludeLevels: []string{"TRACE"}}, keywords)
+		require.NoError(t, err)
+
+		assert.True(t, f.ShouldInclude("TRACE: entering function"))
+		assert.False(t, f.ShouldInclude("DEBUG: variable"))
+		assert.False(t, f.ShouldInclude("INFO: started"))
+	})
+
+	t.Run("exclude_fatal", func(t *testing.T) {
+		t.Parallel()
+
+		f, err := New(Config{ExcludeLevels: []string{"FATAL"}}, keywords)
+		require.NoError(t, err)
+
+		assert.False(t, f.ShouldInclude("FATAL: system crash"))
+		assert.True(t, f.ShouldInclude("ERROR: something"))
+		assert.True(t, f.ShouldInclude("INFO: started"))
+	})
+}

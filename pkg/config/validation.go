@@ -31,6 +31,10 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("log level configuration error: %w", err)
 	}
 
+	if err := c.validateFilter(); err != nil {
+		return fmt.Errorf("filter configuration error: %w", err)
+	}
+
 	return nil
 }
 
@@ -327,6 +331,21 @@ func isValidLogLevel(level string, validLevels []string) bool {
 	}
 
 	return false
+}
+
+// validateFilter validates filter patterns.
+//
+// Empty strings in exclude_patterns or include_patterns are rejected because
+// an empty regex matches every line, which would silently drop or pass all
+// output — almost certainly a configuration mistake.
+func (c *Config) validateFilter() error {
+	if slices.Contains(c.Filter.ExcludePatterns, "") {
+		return fmt.Errorf("%w in exclude_patterns", apperrors.ErrEmptyFilterPattern)
+	}
+	if slices.Contains(c.Filter.IncludePatterns, "") {
+		return fmt.Errorf("%w in include_patterns", apperrors.ErrEmptyFilterPattern)
+	}
+	return nil
 }
 
 func getValidColorsString() string {

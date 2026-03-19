@@ -25,6 +25,7 @@ var (
 	ErrNoDetectionKeywords         = errors.New("log level has no detection keywords")
 	ErrEmptyKeyword                = errors.New("empty keyword in detection keywords")
 	ErrDetectionDisabledWithKeywords = errors.New("detection disabled but keywords are configured")
+	ErrEmptyFilterPattern            = errors.New("empty string in filter patterns is not allowed")
 )
 
 // Command line errors.
