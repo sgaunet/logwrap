@@ -175,6 +175,40 @@ func TestProcessor_ProcessStreams_Success(t *testing.T) {
 	}
 }
 
+func TestWithContext_StopCancelsProcessing(t *testing.T) {
+	t.Parallel()
+
+	output := &testutils.MockWriter{}
+	formatter := &mockFormatter{}
+
+	ctx := context.Background()
+	p := processor.New(formatter, output, processor.WithContext(ctx))
+
+	// Create a slow reader so processing is still in progress when we call Stop()
+	slowReader := &testutils.SlowReader{
+		Content: "line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8\nline9\nline10",
+		Delay:   100 * time.Millisecond,
+	}
+
+	processingDone := make(chan error, 1)
+	go func() {
+		processingDone <- p.ProcessStreams(context.Background(), slowReader, strings.NewReader(""))
+	}()
+
+	// Give processing time to start
+	time.Sleep(150 * time.Millisecond)
+
+	// Stop() should cancel processing via the stored context
+	p.Stop()
+
+	select {
+	case <-processingDone:
+		// Processing terminated - Stop() worked
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("Stop() did not cancel processing within 500ms")
+	}
+}
+
 func TestProcessor_ProcessStreams_NilReaders(t *testing.T) {
 	t.Parallel()
 
@@ -578,6 +612,71 @@ func TestProcessor_EmptyLinesHandling(t *testing.T) {
 	assert.Len(t, writtenLines, len(expectedLines))
 	for _, expected := range expectedLines {
 		assert.Contains(t, writtenLines, expected)
+	}
+}
+
+func TestProcessor_BufferLimits(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		size    int
+		wantErr bool
+	}{
+		{
+			name:    "small line 1KB",
+			size:    1024,
+			wantErr: false,
+		},
+		{
+			name:    "at initial buffer size 64KB",
+			size:    64 * 1024,
+			wantErr: false,
+		},
+		{
+			name:    "between limits 512KB",
+			size:    512 * 1024,
+			wantErr: false,
+		},
+		{
+			name:    "just under max 1MB minus 1",
+			size:    1024*1024 - 1,
+			wantErr: false,
+		},
+		{
+			name:    "exceeds max 2MB",
+			size:    2 * 1024 * 1024,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if testing.Short() && tt.size > 100*1024 {
+				t.Skip("skipping large allocation test in short mode")
+			}
+
+			output := &testutils.MockWriter{}
+			formatter := &mockFormatter{}
+			p := processor.New(formatter, output)
+
+			// Create a single line of the specified size
+			line := strings.Repeat("x", tt.size) + "\n"
+			stdout := strings.NewReader(line)
+			stderr := strings.NewReader("")
+
+			ctx := context.Background()
+			err := p.ProcessStreams(ctx, stdout, stderr)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "maximum buffer size")
+			} else {
+				assert.NoError(t, err)
+			}
+		})
 	}
 }
 
