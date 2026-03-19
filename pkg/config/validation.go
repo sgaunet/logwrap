@@ -132,14 +132,10 @@ func (c *Config) validateColors() error {
 //   - "uid": displays the numeric user ID (e.g., "1000")
 //   - "full": displays both as username(uid) (e.g., "alice(1000)")
 func (c *Config) validateUser() error {
-	validFormats := []string{"username", "uid", "full"}
-
-	if slices.Contains(validFormats, c.Prefix.User.Format) {
-		return nil
-	}
-
-	return fmt.Errorf("%w '%s', valid formats: %s",
-		apperrors.ErrInvalidUserFormat, c.Prefix.User.Format, strings.Join(validFormats, ", "))
+	return validateOneOf(
+		c.Prefix.User.Format, []string{"username", "uid", "full"},
+		"formats", apperrors.ErrInvalidUserFormat,
+	)
 }
 
 // validatePID validates the process ID display format.
@@ -148,28 +144,27 @@ func (c *Config) validateUser() error {
 //   - "decimal": displays PID as a decimal number (e.g., "1234")
 //   - "hex": displays PID as a hexadecimal number (e.g., "0x4d2")
 func (c *Config) validatePID() error {
-	validFormats := []string{"decimal", "hex"}
-
-	if slices.Contains(validFormats, c.Prefix.PID.Format) {
-		return nil
-	}
-
-	return fmt.Errorf("%w '%s', valid formats: %s",
-		apperrors.ErrInvalidPIDFormat, c.Prefix.PID.Format, strings.Join(validFormats, ", "))
+	return validateOneOf(c.Prefix.PID.Format, []string{"decimal", "hex"}, "formats", apperrors.ErrInvalidPIDFormat)
 }
 
 // validateOutput validates the output format setting.
 //
 // Valid formats: "text", "json", "structured".
 func (c *Config) validateOutput() error {
-	validFormats := []string{"text", "json", "structured"}
+	return validateOneOf(
+		c.Output.Format, []string{"text", "json", "structured"},
+		"formats", apperrors.ErrInvalidOutputFormat,
+	)
+}
 
-	if !slices.Contains(validFormats, c.Output.Format) {
-		return fmt.Errorf("%w '%s', valid formats: %s",
-			apperrors.ErrInvalidOutputFormat, c.Output.Format, strings.Join(validFormats, ", "))
+// validateOneOf checks that value is one of validValues. If not, it returns
+// an error wrapping errType with the invalid value and list of valid options.
+func validateOneOf(value string, validValues []string, desc string, errType error) error {
+	if slices.Contains(validValues, value) {
+		return nil
 	}
-
-	return nil
+	return fmt.Errorf("%w '%s', valid %s: %s",
+		errType, value, desc, strings.Join(validValues, ", "))
 }
 
 // validateLogLevel validates log level defaults and detection keyword rules.
