@@ -15,6 +15,7 @@ var (
 	ErrInvalidTimestampFormat      = errors.New("invalid timestamp format")
 	ErrInvalidTimezone             = errors.New("invalid timezone")
 	ErrInvalidColor                = errors.New("invalid color")
+	ErrInvalidColorTheme           = errors.New("unknown color theme")
 	ErrInvalidUserFormat           = errors.New("invalid user format")
 	ErrInvalidPIDFormat            = errors.New("invalid PID format")
 	ErrInvalidOutputFormat         = errors.New("invalid output format")
