@@ -270,7 +270,7 @@ func (f *DefaultFormatter) getLogLevel(line string, streamType processor.StreamT
 
 	// Iterate in priority order to ensure deterministic detection
 	// when a line matches multiple levels (e.g., "INFO: An error occurred").
-	levelPriority := []string{"error", "warn", "info", "debug"}
+	levelPriority := []string{"fatal", "error", "warn", "info", "debug", "trace"}
 	for _, level := range levelPriority {
 		keywords, ok := f.config.LogLevel.Detection.Keywords[level]
 		if !ok {

@@ -986,3 +986,40 @@ func TestConfig_ValidateOutputFormat_AllFormats(t *testing.T) {
 		})
 	}
 }
+
+func TestConfig_ValidateFilter_EmptyPatterns(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		exclude     []string
+		include     []string
+		expectError bool
+	}{
+		{"valid patterns", []string{"heartbeat"}, []string{"important"}, false},
+		{"no patterns", nil, nil, false},
+		{"empty exclude pattern", []string{""}, nil, true},
+		{"empty include pattern", nil, []string{""}, true},
+		{"empty among valid exclude", []string{"valid", ""}, nil, true},
+		{"empty among valid include", nil, []string{"valid", ""}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := getDefaultConfig()
+			cfg.Filter.ExcludePatterns = tt.exclude
+			cfg.Filter.IncludePatterns = tt.include
+
+			err := cfg.Validate()
+			if tt.expectError {
+				require.Error(t, err)
+				assert.ErrorIs(t, err, apperrors.ErrEmptyFilterPattern)
+				assert.Contains(t, err.Error(), "filter configuration error")
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

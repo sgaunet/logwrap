@@ -154,10 +154,13 @@ type CLIFlags struct {
 func LoadConfig(configFile string, args []string) (*Config, error) {
 	config := getDefaultConfig()
 
+	var explicit explicitColorFields
+
 	if configFile != "" {
 		if err := loadConfigFile(config, configFile); err != nil {
 			return nil, fmt.Errorf("failed to load config file: %w", err)
 		}
+		explicit = detectExplicitColorFields(configFile)
 	}
 
 	flags, err := parseCLIFlags(args)
@@ -167,11 +170,24 @@ func LoadConfig(configFile string, args []string) (*Config, error) {
 
 	applyCLIOverrides(config, flags)
 
-	// Apply color theme if set. Theme provides defaults; explicit color
-	// fields in the config or CLI override theme values.
+	// Apply color theme if set. Theme provides base colors; explicit
+	// color fields from the config file or CLI override theme values.
 	if config.Prefix.Colors.Theme != "" {
+		savedColors := config.Prefix.Colors
+
 		if err := applyTheme(&config.Prefix.Colors, config.Prefix.Colors.Theme); err != nil {
 			return nil, fmt.Errorf("invalid configuration: %w", err)
+		}
+
+		// Restore colors explicitly set in the config file
+		if explicit.info {
+			config.Prefix.Colors.Info = savedColors.Info
+		}
+		if explicit.errColor {
+			config.Prefix.Colors.Error = savedColors.Error
+		}
+		if explicit.timestamp {
+			config.Prefix.Colors.Timestamp = savedColors.Timestamp
 		}
 	}
 
@@ -180,6 +196,44 @@ func LoadConfig(configFile string, args []string) (*Config, error) {
 	}
 
 	return config, nil
+}
+
+// explicitColorFields tracks which color fields were explicitly set in the config file.
+type explicitColorFields struct {
+	info      bool
+	errColor  bool
+	timestamp bool
+}
+
+// detectExplicitColorFields re-reads the YAML config to determine which color
+// fields were explicitly set (as opposed to inherited from defaults).
+func detectExplicitColorFields(configFile string) explicitColorFields {
+	var fields explicitColorFields
+
+	data, err := os.ReadFile(configFile) // #nosec G304 - path already validated by loadConfigFile
+	if err != nil {
+		return fields
+	}
+
+	var raw struct {
+		Prefix struct {
+			Colors struct {
+				Info      *string `yaml:"info"`
+				Error     *string `yaml:"error"`
+				Timestamp *string `yaml:"timestamp"`
+			} `yaml:"colors"`
+		} `yaml:"prefix"`
+	}
+
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		return fields
+	}
+
+	fields.info = raw.Prefix.Colors.Info != nil
+	fields.errColor = raw.Prefix.Colors.Error != nil
+	fields.timestamp = raw.Prefix.Colors.Timestamp != nil
+
+	return fields
 }
 
 func getDefaultConfig() *Config {
