@@ -62,13 +62,14 @@ const (
 
 // Executor manages command execution with stream capture and signal handling.
 type Executor struct {
-	cmd        *exec.Cmd
-	cancel     context.CancelFunc
-	stdoutPipe io.ReadCloser
-	stderrPipe io.ReadCloser
-	exitCode   int
-	isStarted  bool
-	isFinished bool
+	cmd         *exec.Cmd
+	cancel      context.CancelFunc
+	stdoutPipe  io.ReadCloser
+	stderrPipe  io.ReadCloser
+	commandName string // stored for error messages
+	exitCode    int
+	isStarted   bool
+	isFinished  bool
 }
 
 // New creates a new Executor instance for the given command.
@@ -78,7 +79,7 @@ func New(command []string) (*Executor, error) {
 	}
 
 	if err := validateCommand(command[0]); err != nil {
-		return nil, fmt.Errorf("invalid command: %w", err)
+		return nil, fmt.Errorf("invalid command %q: %w", command[0], err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -95,22 +96,23 @@ func New(command []string) (*Executor, error) {
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		cancel()
-		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
+		return nil, fmt.Errorf("failed to create stdout pipe for %q: %w", command[0], err)
 	}
 
 	stderrPipe, err := cmd.StderrPipe()
 	if err != nil {
 		_ = stdoutPipe.Close()
 		cancel()
-		return nil, fmt.Errorf("failed to create stderr pipe: %w", err)
+		return nil, fmt.Errorf("failed to create stderr pipe for %q: %w", command[0], err)
 	}
 
 	executor := &Executor{
-		cmd:        cmd,
-		cancel:     cancel,
-		stdoutPipe: stdoutPipe,
-		stderrPipe: stderrPipe,
-		exitCode:   0,
+		cmd:         cmd,
+		cancel:      cancel,
+		stdoutPipe:  stdoutPipe,
+		stderrPipe:  stderrPipe,
+		commandName: command[0],
+		exitCode:    0,
 	}
 
 	return executor, nil
@@ -123,7 +125,7 @@ func (e *Executor) Start() error {
 	}
 
 	if err := e.cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start command: %w", err)
+		return fmt.Errorf("failed to start command %q: %w", e.commandName, err)
 	}
 
 	e.isStarted = true
@@ -148,7 +150,7 @@ func (e *Executor) Wait() error {
 		if errors.As(err, &exitError) {
 			e.exitCode = resolveExitCode(exitError)
 		} else {
-			return fmt.Errorf("command execution failed: %w", err)
+			return fmt.Errorf("command %q execution failed: %w", e.commandName, err)
 		}
 	}
 
@@ -204,7 +206,7 @@ func (e *Executor) Kill() error {
 
 	if e.cmd.Process != nil {
 		if err := e.cmd.Process.Kill(); err != nil {
-			return fmt.Errorf("failed to kill process: %w", err)
+			return fmt.Errorf("failed to kill process %q: %w", e.commandName, err)
 		}
 	}
 
