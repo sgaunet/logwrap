@@ -425,6 +425,44 @@ func TestGetLogLevel(t *testing.T) {
 	}
 }
 
+func TestGetLogLevel_AmbiguousKeywords_Deterministic(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		LogLevel: config.LogLevelConfig{
+			DefaultStdout: "INFO",
+			DefaultStderr: "ERROR",
+			Detection: config.DetectionConfig{
+				Enabled: true,
+				Keywords: map[string][]string{
+					"error": {"ERROR"},
+					"warn":  {"WARN"},
+					"debug": {"DEBUG"},
+					"info":  {"INFO"},
+				},
+			},
+		},
+	}
+
+	formatter, err := New(cfg)
+	require.NoError(t, err)
+
+	// A line containing both INFO and ERROR keywords should always
+	// return the same result across 1000 runs. Before the fix, map
+	// iteration order was random, so results varied.
+	line := "INFO: An error occurred ERROR"
+	results := make(map[string]int)
+	const iterations = 1000
+	for i := 0; i < iterations; i++ {
+		result := formatter.getLogLevel(line, processor.StreamStdout)
+		results[result]++
+	}
+
+	// Should always be classified as ERROR (higher priority than INFO)
+	assert.Len(t, results, 1, "log level detection should be deterministic: got %v", results)
+	assert.Equal(t, iterations, results["ERROR"], "line with both INFO and ERROR should be classified as ERROR")
+}
+
 func TestGetLogLevel_DetectionDisabled(t *testing.T) {
 	t.Parallel()
 

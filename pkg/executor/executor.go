@@ -41,9 +41,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
-	"os/signal"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -53,14 +51,13 @@ import (
 
 // Executor manages command execution with stream capture and signal handling.
 type Executor struct {
-	cmd         *exec.Cmd
-	cancel      context.CancelFunc
-	stdoutPipe  io.ReadCloser
-	stderrPipe  io.ReadCloser
-	signalChan  chan os.Signal
-	exitCode    int
-	isStarted   bool
-	isFinished  bool
+	cmd        *exec.Cmd
+	cancel     context.CancelFunc
+	stdoutPipe io.ReadCloser
+	stderrPipe io.ReadCloser
+	exitCode   int
+	isStarted  bool
+	isFinished bool
 }
 
 // New creates a new Executor instance for the given command.
@@ -94,11 +91,8 @@ func New(command []string) (*Executor, error) {
 		cancel:     cancel,
 		stdoutPipe: stdoutPipe,
 		stderrPipe: stderrPipe,
-		signalChan: make(chan os.Signal, 1),
 		exitCode:   0,
 	}
-
-	executor.setupSignalHandling()
 
 	return executor, nil
 }
@@ -129,9 +123,6 @@ func (e *Executor) Wait() error {
 
 	err := e.cmd.Wait()
 	e.isFinished = true
-
-	signal.Stop(e.signalChan)
-	close(e.signalChan)
 
 	if err != nil {
 		var exitError *exec.ExitError
@@ -205,20 +196,6 @@ func (e *Executor) Cleanup() {
 	if e.cancel != nil {
 		e.cancel()
 	}
-}
-
-func (e *Executor) setupSignalHandling() {
-	signal.Notify(e.signalChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-
-	go func() {
-		for sig := range e.signalChan {
-			if e.isStarted && !e.isFinished {
-				if e.cmd.Process != nil {
-					_ = e.cmd.Process.Signal(sig)
-				}
-			}
-		}
-	}()
 }
 
 // validateCommand performs minimal security validation on the command path.

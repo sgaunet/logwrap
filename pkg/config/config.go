@@ -134,6 +134,7 @@ type CLIFlags struct {
 	OutputFormat  *string
 	Help          *bool
 	Version       *bool
+	setFlags      map[string]bool // tracks which flags were explicitly set on the command line
 }
 
 // LoadConfig loads configuration from file and applies CLI overrides.
@@ -236,6 +237,11 @@ func parseCLIFlags(args []string) (*CLIFlags, error) {
 		return nil, fmt.Errorf("failed to parse flags: %w", err)
 	}
 
+	flags.setFlags = make(map[string]bool)
+	fs.Visit(func(f *flag.Flag) {
+		flags.setFlags[f.Name] = true
+	})
+
 	return flags, nil
 }
 
@@ -243,10 +249,10 @@ func applyCLIOverrides(config *Config, flags *CLIFlags) {
 	if flags.Template != nil && *flags.Template != "" {
 		config.Prefix.Template = *flags.Template
 	}
-	if flags.TimestampUTC != nil {
+	if flags.setFlags["utc"] {
 		config.Prefix.Timestamp.UTC = *flags.TimestampUTC
 	}
-	if flags.ColorsEnabled != nil {
+	if flags.setFlags["colors"] {
 		config.Prefix.Colors.Enabled = *flags.ColorsEnabled
 	}
 	if flags.OutputFormat != nil && *flags.OutputFormat != "" {
