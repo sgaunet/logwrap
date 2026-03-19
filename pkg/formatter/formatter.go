@@ -67,12 +67,8 @@ import (
 	"github.com/sgaunet/logwrap/pkg/processor"
 )
 
-// Formatter defines the interface for formatting log lines.
-type Formatter interface {
-	FormatLine(line string, streamType processor.StreamType) string
-}
-
 // DefaultFormatter provides the default implementation of log line formatting.
+// It implements the [processor.Formatter] interface.
 type DefaultFormatter struct {
 	config   *config.Config
 	template *template.Template
