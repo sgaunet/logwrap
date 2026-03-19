@@ -323,6 +323,16 @@ func TestParseArgs_EdgeCases(t *testing.T) {
 	}
 }
 
+func TestParseArgs_EmptyStringArgument(t *testing.T) {
+	t.Parallel()
+
+	// An empty string element in args should not cause a panic
+	configArgs, command, err := parseArgs([]string{"", "echo"})
+	require.NoError(t, err)
+	assert.Nil(t, configArgs)
+	assert.Equal(t, []string{"", "echo"}, command)
+}
+
 func TestConstants(t *testing.T) {
 	t.Parallel()
 

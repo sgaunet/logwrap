@@ -237,7 +237,14 @@ func (f *DefaultFormatter) getLogLevel(line string, streamType processor.StreamT
 
 	lineUpper := strings.ToUpper(line)
 
-	for level, keywords := range f.config.LogLevel.Detection.Keywords {
+	// Iterate in priority order to ensure deterministic detection
+	// when a line matches multiple levels (e.g., "INFO: An error occurred").
+	levelPriority := []string{"error", "warn", "info", "debug"}
+	for _, level := range levelPriority {
+		keywords, ok := f.config.LogLevel.Detection.Keywords[level]
+		if !ok {
+			continue
+		}
 		for _, keyword := range keywords {
 			if strings.Contains(lineUpper, strings.ToUpper(keyword)) {
 				return strings.ToUpper(level)

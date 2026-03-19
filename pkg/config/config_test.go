@@ -144,6 +144,49 @@ func TestLoadConfig_WithCLIOverrides(t *testing.T) {
 	}
 }
 
+func TestLoadConfig_BoolFlagsDoNotOverrideConfigFile(t *testing.T) {
+	t.Parallel()
+
+	// Config file sets utc: true and colors.enabled: true
+	configContent := `
+prefix:
+  template: "[{{.Timestamp}}] [{{.Level}}] "
+  timestamp:
+    format: "%Y-%m-%d %H:%M:%S"
+    utc: true
+  colors:
+    enabled: true
+    info: "green"
+    error: "red"
+    timestamp: "blue"
+  user:
+    enabled: true
+    format: "username"
+  pid:
+    enabled: true
+    format: "decimal"
+output:
+  format: "text"
+log_level:
+  default_stdout: "INFO"
+  default_stderr: "ERROR"
+  detection:
+    enabled: true
+    keywords:
+      error: ["ERROR"]
+      info: ["INFO"]
+`
+	configFile := testutils.CreateTempConfigFile(t, configContent)
+
+	// Load with NO CLI args - bool flags should NOT override config file values
+	cfg, err := LoadConfig(configFile, []string{})
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+
+	assert.True(t, cfg.Prefix.Timestamp.UTC, "utc: true from config file should not be overridden by flag default")
+	assert.True(t, cfg.Prefix.Colors.Enabled, "colors.enabled: true from config file should not be overridden by flag default")
+}
+
 func TestLoadConfig_InvalidCLIFlags(t *testing.T) {
 	t.Parallel()
 
@@ -447,6 +490,7 @@ func TestApplyCLIOverrides(t *testing.T) {
 		TimestampUTC:  &utc,
 		ColorsEnabled: &colors,
 		OutputFormat:  &format,
+		setFlags:      map[string]bool{"utc": true, "colors": true},
 	}
 
 	// Apply overrides
@@ -458,9 +502,11 @@ func TestApplyCLIOverrides(t *testing.T) {
 	assert.True(t, cfg.Prefix.Colors.Enabled)
 	assert.Equal(t, format, cfg.Output.Format)
 
-	// Test that nil values don't override
+	// Test that unset flags don't override
 	cfg2 := getDefaultConfig()
-	emptyFlags := &CLIFlags{}
+	emptyFlags := &CLIFlags{
+		setFlags: map[string]bool{},
+	}
 
 	applyCLIOverrides(cfg2, emptyFlags)
 
@@ -478,6 +524,7 @@ func TestApplyCLIOverrides(t *testing.T) {
 	emptyStringFlags := &CLIFlags{
 		Template:     &emptyString,
 		OutputFormat: &emptyString,
+		setFlags:     map[string]bool{},
 	}
 
 	applyCLIOverrides(cfg3, emptyStringFlags)

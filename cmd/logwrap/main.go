@@ -112,10 +112,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := run(cfg, command); err != nil {
-		fmt.Fprintf(os.Stderr, "Execution error: %v\n", err)
-		os.Exit(1)
-	}
+	os.Exit(run(cfg, command))
 }
 
 func parseArgs(args []string) ([]string, []string, error) {
@@ -131,7 +128,7 @@ func parseArgs(args []string) ([]string, []string, error) {
 			break
 		}
 
-		if arg[0] == '-' {
+		if len(arg) > 0 && arg[0] == '-' {
 			configArgs = append(configArgs, arg)
 
 			if arg == "-config" || arg == "-template" || arg == "-format" {
@@ -165,21 +162,25 @@ func getConfigFile(args []string) string {
 	return config.FindConfigFile()
 }
 
-func run(cfg *config.Config, command []string) error {
+func run(cfg *config.Config, command []string) int {
 	exec, err := executor.New(command)
 	if err != nil {
-		return fmt.Errorf("failed to create executor: %w", err)
+		fmt.Fprintf(os.Stderr, "Execution error: failed to create executor: %v\n", err)
+		return 1
 	}
+	defer exec.Cleanup()
 
 	form, err := formatter.New(cfg)
 	if err != nil {
-		return fmt.Errorf("failed to create formatter: %w", err)
+		fmt.Fprintf(os.Stderr, "Execution error: failed to create formatter: %v\n", err)
+		return 1
 	}
 
 	proc := processor.New(form, os.Stdout)
 
 	if err := exec.Start(); err != nil {
-		return fmt.Errorf("failed to start command: %w", err)
+		fmt.Fprintf(os.Stderr, "Execution error: failed to start command: %v\n", err)
+		return 1
 	}
 
 	stdout, stderr := exec.GetStreams()
@@ -204,10 +205,7 @@ func run(cfg *config.Config, command []string) error {
 	// Clean up signal handler before exit
 	signal.Stop(sigChan)
 
-	// Determine final exit code and exit
-	exitCode := determineExitCode(exec, receivedSignal, cmdErr)
-	os.Exit(exitCode)
-	return nil
+	return determineExitCode(exec, receivedSignal, cmdErr)
 }
 
 func waitForCommandOrSignal(
