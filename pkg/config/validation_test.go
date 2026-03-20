@@ -1096,3 +1096,42 @@ func TestConfig_ValidateFilter_InvalidRegex(t *testing.T) {
 		})
 	}
 }
+
+func TestConfig_ValidateFilter_InvalidLevelNames(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		include     []string
+		exclude     []string
+		expectError bool
+	}{
+		{"valid uppercase levels", []string{"ERROR", "WARN"}, nil, false},
+		{"valid lowercase levels", []string{"error", "warn"}, nil, false},
+		{"valid mixed include and exclude", []string{"ERROR"}, []string{"DEBUG"}, false},
+		{"all valid levels", []string{"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"}, nil, false},
+		{"typo in include", []string{"EROR"}, nil, true},
+		{"typo in exclude", nil, []string{"DEBU"}, true},
+		{"completely invalid", []string{"INVALID_LEVEL"}, nil, true},
+		{"mixed valid and invalid", []string{"ERROR", "INVALID"}, nil, true},
+		{"empty list is fine", nil, nil, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := getDefaultConfig()
+			cfg.Filter.IncludeLevels = tt.include
+			cfg.Filter.ExcludeLevels = tt.exclude
+
+			err := cfg.Validate()
+			if tt.expectError {
+				require.Error(t, err)
+				assert.ErrorIs(t, err, apperrors.ErrInvalidFilterLevel)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
