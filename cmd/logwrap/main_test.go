@@ -493,6 +493,30 @@ func TestHasFlag_EdgeCases(t *testing.T) {
 			flag:     "colors",
 			expected: true, // "colors" appears as an argument
 		},
+		{
+			name:     "flag with =true suffix",
+			args:     []string{"-validate=true"},
+			flag:     "-validate",
+			expected: true,
+		},
+		{
+			name:     "flag with =false suffix not matched",
+			args:     []string{"-validate=false"},
+			flag:     "-validate",
+			expected: false,
+		},
+		{
+			name:     "help with =true suffix",
+			args:     []string{"-help=true"},
+			flag:     "-help",
+			expected: true,
+		},
+		{
+			name:     "version with =true suffix",
+			args:     []string{"-version=true"},
+			flag:     "-version",
+			expected: true,
+		},
 	}
 
 	for _, tt := range tests {
