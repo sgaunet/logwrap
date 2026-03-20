@@ -29,6 +29,54 @@ func TestConfig_ValidatePrefix_EmptyTemplate(t *testing.T) {
 	assert.Contains(t, err.Error(), "prefix configuration error")
 }
 
+func TestConfig_ValidateTemplate_InvalidSyntax(t *testing.T) {
+	t.Parallel()
+
+	cfg := getDefaultConfig()
+	cfg.Prefix.Template = "{{.Level"
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.ErrorIs(t, err, apperrors.ErrInvalidTemplate)
+	assert.Contains(t, err.Error(), "prefix configuration error")
+}
+
+func TestConfig_ValidateTemplate_InvalidField(t *testing.T) {
+	t.Parallel()
+
+	cfg := getDefaultConfig()
+	cfg.Prefix.Template = "{{.InvalidField}} "
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.ErrorIs(t, err, apperrors.ErrInvalidTemplate)
+	assert.Contains(t, err.Error(), "InvalidField")
+}
+
+func TestConfig_ValidateTemplate_ValidTemplates(t *testing.T) {
+	t.Parallel()
+
+	templates := []string{
+		"[{{.Timestamp}}] [{{.Level}}] ",
+		"{{.Level}}: ",
+		"{{.Line}}",
+		"[{{.User}}:{{.PID}}] ",
+		"static prefix ",
+	}
+
+	for _, tmpl := range templates {
+		t.Run(tmpl, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := getDefaultConfig()
+			cfg.Prefix.Template = tmpl
+
+			err := cfg.Validate()
+			assert.NoError(t, err)
+		})
+	}
+}
+
 func TestConfig_ValidateTimestamp(t *testing.T) {
 	t.Parallel()
 

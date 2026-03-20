@@ -2,9 +2,11 @@ package config
 
 import (
 	"fmt"
+	"io"
 	"regexp"
 	"slices"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/itchyny/timefmt-go"
@@ -49,6 +51,10 @@ func (c *Config) validatePrefix() error {
 		return apperrors.ErrTemplateEmpty
 	}
 
+	if err := validateTemplate(c.Prefix.Template); err != nil {
+		return fmt.Errorf("template error: %w", err)
+	}
+
 	if err := c.validateTimestamp(); err != nil {
 		return fmt.Errorf("timestamp config error: %w", err)
 	}
@@ -63,6 +69,29 @@ func (c *Config) validatePrefix() error {
 
 	if err := c.validatePID(); err != nil {
 		return fmt.Errorf("PID config error: %w", err)
+	}
+
+	return nil
+}
+
+// validateTemplate parses the Go template and executes it with test data
+// to catch both syntax errors and unknown field references at validation
+// time rather than at runtime.
+//
+// The test struct fields must match formatter.TemplateData. We define them
+// locally to avoid a circular import (config ← formatter).
+func validateTemplate(tmplStr string) error {
+	tmpl, err := template.New("prefix").Parse(tmplStr)
+	if err != nil {
+		return fmt.Errorf("%w: %w", apperrors.ErrInvalidTemplate, err)
+	}
+
+	testData := struct {
+		Timestamp, Level, User, PID, Line string
+	}{"t", "t", "t", "t", "t"}
+
+	if err := tmpl.Execute(io.Discard, testData); err != nil {
+		return fmt.Errorf("%w: %w", apperrors.ErrInvalidTemplate, err)
 	}
 
 	return nil
