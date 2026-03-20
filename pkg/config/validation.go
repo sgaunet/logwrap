@@ -345,10 +345,18 @@ func isValidLogLevel(level string, validLevels []string) bool {
 // that assigns levels to lines. Without detection, all lines have
 // an empty detected level and level filters silently drop everything.
 func (c *Config) validateFilter() error {
+	validLevels := []string{"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"}
+
 	if !c.LogLevel.Detection.Enabled {
 		if len(c.Filter.IncludeLevels) > 0 || len(c.Filter.ExcludeLevels) > 0 {
 			return apperrors.ErrFilterLevelsWithoutDetection
 		}
+	}
+	if err := validateFilterLevelNames(c.Filter.IncludeLevels, "include_levels", validLevels); err != nil {
+		return err
+	}
+	if err := validateFilterLevelNames(c.Filter.ExcludeLevels, "exclude_levels", validLevels); err != nil {
+		return err
 	}
 	if slices.Contains(c.Filter.ExcludePatterns, "") {
 		return fmt.Errorf("%w in exclude_patterns", apperrors.ErrEmptyFilterPattern)
@@ -361,6 +369,18 @@ func (c *Config) validateFilter() error {
 	}
 	if err := validateRegexPatterns(c.Filter.IncludePatterns, "include_patterns"); err != nil {
 		return err
+	}
+	return nil
+}
+
+// validateFilterLevelNames checks that all level names in the list are valid
+// log levels. This prevents typos from silently dropping all output.
+func validateFilterLevelNames(levels []string, field string, validLevels []string) error {
+	for _, level := range levels {
+		if !isValidLogLevel(strings.ToUpper(level), validLevels) {
+			return fmt.Errorf("%w %q in %s, valid levels: %s",
+				apperrors.ErrInvalidFilterLevel, level, field, strings.Join(validLevels, ", "))
+		}
 	}
 	return nil
 }

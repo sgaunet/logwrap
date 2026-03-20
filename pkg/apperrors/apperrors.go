@@ -28,6 +28,7 @@ var (
 	ErrEmptyFilterPattern            = errors.New("empty string in filter patterns is not allowed")
 	ErrFilterLevelsWithoutDetection  = errors.New("filter include_levels/exclude_levels require detection to be enabled")
 	ErrInvalidFilterPattern          = errors.New("invalid regex in filter pattern")
+	ErrInvalidFilterLevel            = errors.New("invalid log level in filter")
 )
 
 // Command line errors.
