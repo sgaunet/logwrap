@@ -56,8 +56,10 @@ package config
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -287,7 +289,7 @@ func loadConfigFile(config *Config, configFile string) error {
 
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
-	if err := decoder.Decode(config); err != nil {
+	if err := decoder.Decode(config); err != nil && !errors.Is(err, io.EOF) {
 		return fmt.Errorf("failed to parse YAML config: %w", err)
 	}
 
