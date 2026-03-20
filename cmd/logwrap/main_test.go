@@ -438,6 +438,16 @@ func TestGetConfigFile_WithConfigFlag(t *testing.T) {
 			args:     []string{"-colors", "-config", "middle.yaml", "-utc"},
 			expected: "middle.yaml",
 		},
+		{
+			name:     "config with equals syntax",
+			args:     []string{"-config=/etc/logwrap/config.yaml"},
+			expected: "/etc/logwrap/config.yaml",
+		},
+		{
+			name:     "config equals syntax in middle of args",
+			args:     []string{"-colors", "-config=app.yaml", "-utc"},
+			expected: "app.yaml",
+		},
 	}
 
 	for _, tt := range tests {

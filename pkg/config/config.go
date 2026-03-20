@@ -170,24 +170,19 @@ func LoadConfig(configFile string, args []string) (*Config, error) {
 
 	applyCLIOverrides(config, flags)
 
+	// When detection is disabled, clear default keywords so the
+	// "disabled but keywords configured" validation does not reject
+	// configs that simply set detection.enabled: false. YAML
+	// unmarshaling merges maps and cannot clear pre-populated defaults.
+	if !config.LogLevel.Detection.Enabled {
+		config.LogLevel.Detection.Keywords = nil
+	}
+
 	// Apply color theme if set. Theme provides base colors; explicit
 	// color fields from the config file or CLI override theme values.
 	if config.Prefix.Colors.Theme != "" {
-		savedColors := config.Prefix.Colors
-
-		if err := applyTheme(&config.Prefix.Colors, config.Prefix.Colors.Theme); err != nil {
+		if err := applyThemeWithOverrides(&config.Prefix.Colors, explicit); err != nil {
 			return nil, fmt.Errorf("invalid configuration: %w", err)
-		}
-
-		// Restore colors explicitly set in the config file
-		if explicit.info {
-			config.Prefix.Colors.Info = savedColors.Info
-		}
-		if explicit.errColor {
-			config.Prefix.Colors.Error = savedColors.Error
-		}
-		if explicit.timestamp {
-			config.Prefix.Colors.Timestamp = savedColors.Timestamp
 		}
 	}
 

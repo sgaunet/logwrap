@@ -533,3 +533,35 @@ func TestApplyCLIOverrides(t *testing.T) {
 	assert.Equal(t, originalTemplate, cfg3.Prefix.Template)
 	assert.Equal(t, "text", cfg3.Output.Format) // Should keep default
 }
+
+func TestLoadConfig_DetectionDisabledClearsDefaultKeywords(t *testing.T) {
+	t.Parallel()
+
+	yamlContent := `
+prefix:
+  template: "[{{.Level}}] "
+  timestamp:
+    format: "%H:%M:%S"
+  user:
+    enabled: false
+    format: "username"
+  pid:
+    enabled: false
+    format: "decimal"
+output:
+  format: "text"
+log_level:
+  default_stdout: "INFO"
+  default_stderr: "ERROR"
+  detection:
+    enabled: false
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(yamlContent), 0600))
+
+	cfg, err := LoadConfig(configPath, nil)
+	require.NoError(t, err, "detection.enabled: false should not fail validation")
+	assert.False(t, cfg.LogLevel.Detection.Enabled)
+	assert.Empty(t, cfg.LogLevel.Detection.Keywords, "keywords should be cleared when detection is disabled")
+}
