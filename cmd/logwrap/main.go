@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"slices"
+	"strings"
 	"syscall"
 	"time"
 
@@ -158,18 +159,53 @@ func validateConfig(args []string) int {
 
 	_, _ = fmt.Fprintf(os.Stdout, "Configuration is valid\n\n")
 	_, _ = fmt.Fprintf(os.Stdout, "Loaded from: %s\n\n", source)
+	printConfigSettings(cfg)
+	return 0
+}
+
+func printConfigSettings(cfg *config.Config) {
 	_, _ = fmt.Fprintf(os.Stdout, "Settings:\n")
 	_, _ = fmt.Fprintf(os.Stdout, "  Output format:    %s\n", cfg.Output.Format)
 	_, _ = fmt.Fprintf(os.Stdout, "  Template:         %s\n", cfg.Prefix.Template)
 	_, _ = fmt.Fprintf(os.Stdout, "  Timestamp format: %s\n", cfg.Prefix.Timestamp.Format)
 	_, _ = fmt.Fprintf(os.Stdout, "  Timestamp UTC:    %t\n", cfg.Prefix.Timestamp.UTC)
 	_, _ = fmt.Fprintf(os.Stdout, "  Colors:           %t\n", cfg.Prefix.Colors.Enabled)
+	if cfg.Prefix.Colors.Enabled {
+		printColorSettings(cfg)
+	}
 	_, _ = fmt.Fprintf(os.Stdout, "  User:             %t (%s)\n", cfg.Prefix.User.Enabled, cfg.Prefix.User.Format)
 	_, _ = fmt.Fprintf(os.Stdout, "  PID:              %t (%s)\n", cfg.Prefix.PID.Enabled, cfg.Prefix.PID.Format)
 	_, _ = fmt.Fprintf(os.Stdout, "  Default stdout:   %s\n", cfg.LogLevel.DefaultStdout)
 	_, _ = fmt.Fprintf(os.Stdout, "  Default stderr:   %s\n", cfg.LogLevel.DefaultStderr)
 	_, _ = fmt.Fprintf(os.Stdout, "  Detection:        %t\n", cfg.LogLevel.Detection.Enabled)
-	return 0
+	if cfg.Filter.Enabled {
+		printFilterSettings(cfg)
+	}
+}
+
+func printColorSettings(cfg *config.Config) {
+	if cfg.Prefix.Colors.Theme != "" {
+		_, _ = fmt.Fprintf(os.Stdout, "    Theme:          %s\n", cfg.Prefix.Colors.Theme)
+	}
+	_, _ = fmt.Fprintf(os.Stdout, "    Info:           %s\n", cfg.Prefix.Colors.Info)
+	_, _ = fmt.Fprintf(os.Stdout, "    Error:          %s\n", cfg.Prefix.Colors.Error)
+	_, _ = fmt.Fprintf(os.Stdout, "    Timestamp:      %s\n", cfg.Prefix.Colors.Timestamp)
+}
+
+func printFilterSettings(cfg *config.Config) {
+	_, _ = fmt.Fprintf(os.Stdout, "  Filter:           true\n")
+	if len(cfg.Filter.IncludeLevels) > 0 {
+		_, _ = fmt.Fprintf(os.Stdout, "    Include levels: %s\n", strings.Join(cfg.Filter.IncludeLevels, ", "))
+	}
+	if len(cfg.Filter.ExcludeLevels) > 0 {
+		_, _ = fmt.Fprintf(os.Stdout, "    Exclude levels: %s\n", strings.Join(cfg.Filter.ExcludeLevels, ", "))
+	}
+	if len(cfg.Filter.IncludePatterns) > 0 {
+		_, _ = fmt.Fprintf(os.Stdout, "    Include patterns: %s\n", strings.Join(cfg.Filter.IncludePatterns, ", "))
+	}
+	if len(cfg.Filter.ExcludePatterns) > 0 {
+		_, _ = fmt.Fprintf(os.Stdout, "    Exclude patterns: %s\n", strings.Join(cfg.Filter.ExcludePatterns, ", "))
+	}
 }
 
 func parseArgs(args []string) ([]string, []string, error) {
@@ -214,6 +250,9 @@ func getConfigFile(args []string) string {
 	for i, arg := range args {
 		if arg == "-config" && i+1 < len(args) {
 			return args[i+1]
+		}
+		if val, ok := strings.CutPrefix(arg, "-config="); ok {
+			return val
 		}
 	}
 	return config.FindConfigFile()

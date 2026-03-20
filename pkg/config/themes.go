@@ -64,6 +64,28 @@ func applyTheme(colors *ColorsConfig, themeName string) error {
 	return nil
 }
 
+// applyThemeWithOverrides applies a theme and then restores any color fields
+// that were explicitly set in the config file.
+func applyThemeWithOverrides(colors *ColorsConfig, explicit explicitColorFields) error {
+	saved := *colors
+
+	if err := applyTheme(colors, colors.Theme); err != nil {
+		return err
+	}
+
+	if explicit.info {
+		colors.Info = saved.Info
+	}
+	if explicit.errColor {
+		colors.Error = saved.Error
+	}
+	if explicit.timestamp {
+		colors.Timestamp = saved.Timestamp
+	}
+
+	return nil
+}
+
 // ThemeNames returns the sorted list of available theme names.
 func ThemeNames() []string {
 	names := make([]string, 0, len(predefinedThemes))
