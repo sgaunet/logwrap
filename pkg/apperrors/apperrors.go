@@ -11,6 +11,7 @@ import "errors"
 // Configuration errors.
 var (
 	ErrTemplateEmpty               = errors.New("template cannot be empty")
+	ErrInvalidTemplate             = errors.New("invalid template")
 	ErrTimestampFormatEmpty        = errors.New("timestamp format cannot be empty")
 	ErrInvalidTimestampFormat      = errors.New("invalid timestamp format")
 	ErrInvalidTimezone             = errors.New("invalid timezone")
