@@ -1023,3 +1023,76 @@ func TestConfig_ValidateFilter_EmptyPatterns(t *testing.T) {
 		})
 	}
 }
+
+func TestConfig_ValidateFilter_LevelsRequireDetection(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		detection   bool
+		include     []string
+		exclude     []string
+		expectError bool
+	}{
+		{"include_levels with detection enabled", true, []string{"ERROR"}, nil, false},
+		{"exclude_levels with detection enabled", true, nil, []string{"DEBUG"}, false},
+		{"include_levels with detection disabled", false, []string{"ERROR"}, nil, true},
+		{"exclude_levels with detection disabled", false, nil, []string{"DEBUG"}, true},
+		{"no level filters with detection disabled", false, nil, nil, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := getDefaultConfig()
+			cfg.LogLevel.Detection.Enabled = tt.detection
+			if !tt.detection {
+				cfg.LogLevel.Detection.Keywords = nil
+			}
+			cfg.Filter.IncludeLevels = tt.include
+			cfg.Filter.ExcludeLevels = tt.exclude
+
+			err := cfg.Validate()
+			if tt.expectError {
+				require.Error(t, err)
+				assert.ErrorIs(t, err, apperrors.ErrFilterLevelsWithoutDetection)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestConfig_ValidateFilter_InvalidRegex(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		exclude     []string
+		include     []string
+		expectError bool
+	}{
+		{"valid regex patterns", []string{"^ERROR"}, []string{"important.*msg"}, false},
+		{"invalid exclude regex", []string{"[invalid"}, nil, true},
+		{"invalid include regex", nil, []string{"(unclosed"}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := getDefaultConfig()
+			cfg.Filter.ExcludePatterns = tt.exclude
+			cfg.Filter.IncludePatterns = tt.include
+
+			err := cfg.Validate()
+			if tt.expectError {
+				require.Error(t, err)
+				assert.ErrorIs(t, err, apperrors.ErrInvalidFilterPattern)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
