@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -135,7 +134,7 @@ func validateConfig(args []string) int {
 	// not a config flag and would be rejected by the flag parser.
 	var filteredArgs []string
 	for _, arg := range args {
-		if arg != "-validate" {
+		if arg != "-validate" && arg != "-validate=true" {
 			filteredArgs = append(filteredArgs, arg)
 		}
 	}
@@ -243,7 +242,12 @@ func parseArgs(args []string) ([]string, []string, error) {
 }
 
 func hasFlag(args []string, flag string) bool {
-	return slices.Contains(args, flag)
+	for _, arg := range args {
+		if arg == flag || arg == flag+"=true" {
+			return true
+		}
+	}
+	return false
 }
 
 func getConfigFile(args []string) string {
