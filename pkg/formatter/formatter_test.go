@@ -1343,3 +1343,59 @@ func TestFormatLine_Structured_DisabledUserPID(t *testing.T) {
 	assert.NotContains(t, result, "user=", "user field should be omitted when disabled")
 	assert.NotContains(t, result, "pid=", "pid field should be omitted when disabled")
 }
+
+func TestFormatLine_TemplateWithLine_NoDuplication(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		Prefix: config.PrefixConfig{
+			Template: "[{{.Level}}] {{.Line}}",
+			Timestamp: config.TimestampConfig{
+				Format: "%H:%M:%S",
+			},
+			Colors: config.ColorsConfig{Enabled: false},
+			User:   config.UserConfig{Enabled: false},
+			PID:    config.PIDConfig{Enabled: false},
+		},
+		Output: config.OutputConfig{Format: "text"},
+		LogLevel: config.LogLevelConfig{
+			DefaultStdout: "INFO",
+			DefaultStderr: "ERROR",
+			Detection:     config.DetectionConfig{Enabled: false},
+		},
+	}
+
+	formatter, err := New(cfg)
+	require.NoError(t, err)
+
+	result := formatter.FormatLine("hello world", processor.StreamStdout)
+	assert.Equal(t, "[INFO] hello world", result, "line should not be duplicated when template includes {{.Line}}")
+}
+
+func TestFormatLine_TemplateWithoutLine_AppendsLine(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		Prefix: config.PrefixConfig{
+			Template: "[{{.Level}}] ",
+			Timestamp: config.TimestampConfig{
+				Format: "%H:%M:%S",
+			},
+			Colors: config.ColorsConfig{Enabled: false},
+			User:   config.UserConfig{Enabled: false},
+			PID:    config.PIDConfig{Enabled: false},
+		},
+		Output: config.OutputConfig{Format: "text"},
+		LogLevel: config.LogLevelConfig{
+			DefaultStdout: "INFO",
+			DefaultStderr: "ERROR",
+			Detection:     config.DetectionConfig{Enabled: false},
+		},
+	}
+
+	formatter, err := New(cfg)
+	require.NoError(t, err)
+
+	result := formatter.FormatLine("hello world", processor.StreamStdout)
+	assert.Equal(t, "[INFO] hello world", result, "line should be appended when template does not include {{.Line}}")
+}

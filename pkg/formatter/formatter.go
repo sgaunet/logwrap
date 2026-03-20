@@ -77,11 +77,12 @@ const (
 // DefaultFormatter provides the default implementation of log line formatting.
 // It implements the [processor.Formatter] interface.
 type DefaultFormatter struct {
-	config   *config.Config
-	template *template.Template
-	userInfo *user.User
-	pid      int
-	colors   map[string]string
+	config           *config.Config
+	template         *template.Template
+	userInfo         *user.User
+	pid              int
+	colors           map[string]string
+	templateUsesLine bool
 }
 
 // TemplateData contains the data available for template rendering.
@@ -125,11 +126,12 @@ func New(cfg *config.Config) (*DefaultFormatter, error) {
 	}
 
 	return &DefaultFormatter{
-		config:   cfg,
-		template: tmpl,
-		userInfo: userInfo,
-		pid:      os.Getpid(),
-		colors:   colors,
+		config:           cfg,
+		template:         tmpl,
+		userInfo:         userInfo,
+		pid:              os.Getpid(),
+		colors:           colors,
+		templateUsesLine: strings.Contains(cfg.Prefix.Template, ".Line"),
 	}, nil
 }
 
@@ -152,6 +154,15 @@ func (f *DefaultFormatter) formatText(data TemplateData) string {
 	builder.Grow(estimatedPrefixLen + len(data.Line))
 	if err := f.template.Execute(&builder, data); err != nil {
 		return data.Line
+	}
+
+	// When the template already includes {{.Line}}, it produces
+	// the complete output — don't append the line again.
+	if f.templateUsesLine {
+		if f.config.Prefix.Colors.Enabled {
+			return f.colorizePrefix(builder.String())
+		}
+		return builder.String()
 	}
 
 	if f.config.Prefix.Colors.Enabled {

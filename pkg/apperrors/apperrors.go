@@ -26,6 +26,8 @@ var (
 	ErrEmptyKeyword                = errors.New("empty keyword in detection keywords")
 	ErrDetectionDisabledWithKeywords = errors.New("detection disabled but keywords are configured")
 	ErrEmptyFilterPattern            = errors.New("empty string in filter patterns is not allowed")
+	ErrFilterLevelsWithoutDetection  = errors.New("filter include_levels/exclude_levels require detection to be enabled")
+	ErrInvalidFilterPattern          = errors.New("invalid regex in filter pattern")
 )
 
 // Command line errors.

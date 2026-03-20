@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -333,17 +334,43 @@ func isValidLogLevel(level string, validLevels []string) bool {
 	return false
 }
 
-// validateFilter validates filter patterns.
+// validateFilter validates filter patterns and level-based filtering rules.
 //
 // Empty strings in exclude_patterns or include_patterns are rejected because
 // an empty regex matches every line, which would silently drop or pass all
 // output — almost certainly a configuration mistake.
+//
+// Level-based filter rules (include_levels, exclude_levels) require
+// detection to be enabled, since level detection is the mechanism
+// that assigns levels to lines. Without detection, all lines have
+// an empty detected level and level filters silently drop everything.
 func (c *Config) validateFilter() error {
+	if !c.LogLevel.Detection.Enabled {
+		if len(c.Filter.IncludeLevels) > 0 || len(c.Filter.ExcludeLevels) > 0 {
+			return apperrors.ErrFilterLevelsWithoutDetection
+		}
+	}
 	if slices.Contains(c.Filter.ExcludePatterns, "") {
 		return fmt.Errorf("%w in exclude_patterns", apperrors.ErrEmptyFilterPattern)
 	}
 	if slices.Contains(c.Filter.IncludePatterns, "") {
 		return fmt.Errorf("%w in include_patterns", apperrors.ErrEmptyFilterPattern)
+	}
+	if err := validateRegexPatterns(c.Filter.ExcludePatterns, "exclude_patterns"); err != nil {
+		return err
+	}
+	if err := validateRegexPatterns(c.Filter.IncludePatterns, "include_patterns"); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateRegexPatterns compiles each pattern to check for syntax errors.
+func validateRegexPatterns(patterns []string, field string) error {
+	for _, p := range patterns {
+		if _, err := regexp.Compile(p); err != nil {
+			return fmt.Errorf("%w %q in %s: %w", apperrors.ErrInvalidFilterPattern, p, field, err)
+		}
 	}
 	return nil
 }
