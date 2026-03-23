@@ -110,9 +110,12 @@ func New(cfg *config.Config) (*DefaultFormatter, error) {
 		return nil, fmt.Errorf("invalid template: %w", err)
 	}
 
-	userInfo, err := user.Current()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user info: %w", err)
+	var userInfo *user.User
+	if cfg.Prefix.User.Enabled {
+		userInfo, err = user.Current()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get user info: %w", err)
+		}
 	}
 
 	colors := make(map[string]string)
