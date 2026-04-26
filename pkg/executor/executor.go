@@ -44,7 +44,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -68,8 +70,8 @@ type Executor struct {
 	stderrPipe  io.ReadCloser
 	commandName string // stored for error messages
 	exitCode    int
-	isStarted   bool
-	isFinished  bool
+	isStarted   atomic.Bool
+	isFinished  atomic.Bool
 }
 
 // New creates a new Executor instance for the given command.
@@ -88,7 +90,10 @@ func New(command []string) (*Executor, error) {
 	// Send SIGTERM (not SIGKILL) when the context is cancelled.
 	// If the process doesn't exit within WaitDelay, Go escalates to SIGKILL.
 	cmd.Cancel = func() error {
-		return cmd.Process.Signal(syscall.SIGTERM)
+		if cmd.Process != nil {
+			return cmd.Process.Signal(syscall.SIGTERM)
+		}
+		return nil
 	}
 	cmd.WaitDelay = gracefulStopDelay
 	cmd.Stdin = os.Stdin
@@ -120,7 +125,7 @@ func New(command []string) (*Executor, error) {
 
 // Start begins execution of the command.
 func (e *Executor) Start() error {
-	if e.isStarted {
+	if e.isStarted.Load() {
 		return appErrors.ErrExecutorStarted
 	}
 
@@ -128,31 +133,49 @@ func (e *Executor) Start() error {
 		return fmt.Errorf("failed to start command %q: %w", e.commandName, err)
 	}
 
-	e.isStarted = true
+	e.isStarted.Store(true)
 	return nil
 }
 
 // Wait waits for the command to complete and returns any error.
 func (e *Executor) Wait() error {
-	if !e.isStarted {
+	if !e.isStarted.Load() {
 		return appErrors.ErrExecutorNotStarted
 	}
 
-	if e.isFinished {
+	if e.isFinished.Load() {
 		return nil
 	}
 
 	err := e.cmd.Wait()
-	e.isFinished = true
 
 	if err != nil {
 		var exitError *exec.ExitError
-		if errors.As(err, &exitError) {
+
+		switch {
+		// ErrWaitDelay means the process exited but its pipes weren't fully
+		// drained before WaitDelay expired (e.g., a grandchild holds them open).
+		// The process itself succeeded, so treat this as a normal exit.
+		case errors.Is(err, exec.ErrWaitDelay):
+			e.isFinished.Store(true)
+			return nil
+
+		case errors.As(err, &exitError):
 			e.exitCode = resolveExitCode(exitError)
-		} else {
+
+		// Context cancellation can race with the process exiting. If the
+		// process already exited, extract its real exit code instead of
+		// treating context.Canceled as a generic failure.
+		case errors.Is(err, context.Canceled) && e.cmd.ProcessState != nil:
+			e.exitCode = e.cmd.ProcessState.ExitCode()
+
+		default:
+			e.isFinished.Store(true)
 			return fmt.Errorf("command %q execution failed: %w", e.commandName, err)
 		}
 	}
+
+	e.isFinished.Store(true)
 
 	return nil
 }
@@ -183,14 +206,14 @@ func (e *Executor) GetExitCode() int {
 
 // IsFinished returns true if the command has finished execution.
 func (e *Executor) IsFinished() bool {
-	return e.isFinished
+	return e.isFinished.Load()
 }
 
 // Stop gracefully terminates the command using SIGTERM.
 // Context cancellation triggers the custom Cancel function (SIGTERM).
 // If the process doesn't exit within WaitDelay, Go escalates to SIGKILL.
 func (e *Executor) Stop() error {
-	if !e.isStarted || e.isFinished {
+	if !e.isStarted.Load() || e.isFinished.Load() {
 		return nil
 	}
 
@@ -200,7 +223,7 @@ func (e *Executor) Stop() error {
 
 // Kill forcefully terminates the command with SIGKILL.
 func (e *Executor) Kill() error {
-	if !e.isStarted || e.isFinished {
+	if !e.isStarted.Load() || e.isFinished.Load() {
 		return nil
 	}
 
@@ -238,10 +261,14 @@ func (e *Executor) Cleanup() {
 // Commands run with the current user's privileges. Callers are responsible
 // for validating commands before passing them to logwrap.
 func validateCommand(command string) error {
-	cleaned := filepath.Clean(command)
-	if strings.Contains(cleaned, "..") {
+	// Check the raw path before filepath.Clean, which normalizes away ".."
+	// in absolute paths (e.g., "/../etc/passwd" → "/etc/passwd").
+	if slices.Contains(strings.Split(command, string(filepath.Separator)), "..") {
 		return appErrors.ErrCommandPathTraversal
 	}
-
+	cleaned := filepath.Clean(command)
+	if slices.Contains(strings.Split(cleaned, string(filepath.Separator)), "..") {
+		return appErrors.ErrCommandPathTraversal
+	}
 	return nil
 }

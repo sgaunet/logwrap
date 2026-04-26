@@ -1057,6 +1057,7 @@ func TestConfig_ValidateFilter_EmptyPatterns(t *testing.T) {
 			t.Parallel()
 
 			cfg := getDefaultConfig()
+			cfg.Filter.Enabled = true
 			cfg.Filter.ExcludePatterns = tt.exclude
 			cfg.Filter.IncludePatterns = tt.include
 
@@ -1094,6 +1095,7 @@ func TestConfig_ValidateFilter_LevelsRequireDetection(t *testing.T) {
 			t.Parallel()
 
 			cfg := getDefaultConfig()
+			cfg.Filter.Enabled = true
 			cfg.LogLevel.Detection.Enabled = tt.detection
 			if !tt.detection {
 				cfg.LogLevel.Detection.Keywords = nil
@@ -1131,6 +1133,7 @@ func TestConfig_ValidateFilter_InvalidRegex(t *testing.T) {
 			t.Parallel()
 
 			cfg := getDefaultConfig()
+			cfg.Filter.Enabled = true
 			cfg.Filter.ExcludePatterns = tt.exclude
 			cfg.Filter.IncludePatterns = tt.include
 
@@ -1170,6 +1173,7 @@ func TestConfig_ValidateFilter_InvalidLevelNames(t *testing.T) {
 			t.Parallel()
 
 			cfg := getDefaultConfig()
+			cfg.Filter.Enabled = true
 			cfg.Filter.IncludeLevels = tt.include
 			cfg.Filter.ExcludeLevels = tt.exclude
 

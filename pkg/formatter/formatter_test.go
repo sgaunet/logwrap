@@ -746,30 +746,36 @@ func TestGetColorCode(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
+		name      string
 		colorName string
-		expected string
+		expected  string
+		wantErr   bool
 	}{
-		{"black", "black", "\033[30m"},
-		{"red", "red", "\033[31m"},
-		{"green", "green", "\033[32m"},
-		{"yellow", "yellow", "\033[33m"},
-		{"blue", "blue", "\033[34m"},
-		{"magenta", "magenta", "\033[35m"},
-		{"cyan", "cyan", "\033[36m"},
-		{"white", "white", "\033[37m"},
-		{"none", "none", ""},
-		{"empty", "", ""},
-		{"invalid", "invalid", ""},
-		{"case insensitive", "RED", "\033[31m"},
+		{"black", "black", "\033[30m", false},
+		{"red", "red", "\033[31m", false},
+		{"green", "green", "\033[32m", false},
+		{"yellow", "yellow", "\033[33m", false},
+		{"blue", "blue", "\033[34m", false},
+		{"magenta", "magenta", "\033[35m", false},
+		{"cyan", "cyan", "\033[36m", false},
+		{"white", "white", "\033[37m", false},
+		{"none", "none", "", false},
+		{"empty", "", "", false},
+		{"invalid", "invalid", "", true},
+		{"case insensitive", "RED", "\033[31m", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := getColorCode(tt.colorName)
-			assert.Equal(t, tt.expected, result)
+			result, err := getColorCode(tt.colorName)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expected, result)
+			}
 		})
 	}
 }

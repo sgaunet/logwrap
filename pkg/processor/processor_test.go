@@ -273,9 +273,9 @@ func TestProcessor_ProcessStreams_ContextCancellation(t *testing.T) {
 
 	err := p.ProcessStreams(ctx, slowReader, strings.NewReader(""))
 
-	// Should return an error due to context cancellation
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "processing errors occurred")
+	// Context cancellation is a normal shutdown path, not an error.
+	// Some lines may have been processed before cancellation.
+	assert.NoError(t, err)
 }
 
 func TestProcessor_ProcessStreams_FormatterError(t *testing.T) {
