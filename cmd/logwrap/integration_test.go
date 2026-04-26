@@ -20,6 +20,7 @@ import (
 	"github.com/sgaunet/logwrap/pkg/processor"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 // testBinaryPath holds the path to the compiled logwrap binary for subprocess tests.
@@ -49,9 +50,9 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	exitCode := m.Run()
-	os.RemoveAll(tmpDir)
-	os.Exit(exitCode)
+	goleak.VerifyTestMain(m, goleak.Cleanup(func(exitCode int) {
+		os.RemoveAll(tmpDir)
+	}))
 }
 
 // runPipeline constructs the full logwrap pipeline with a thread-safe captured

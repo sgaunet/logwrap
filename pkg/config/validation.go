@@ -374,6 +374,10 @@ func isValidLogLevel(level string, validLevels []string) bool {
 // that assigns levels to lines. Without detection, all lines have
 // an empty detected level and level filters silently drop everything.
 func (c *Config) validateFilter() error {
+	if !c.Filter.Enabled {
+		return nil
+	}
+
 	validLevels := []string{"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"}
 
 	if !c.LogLevel.Detection.Enabled {
@@ -387,19 +391,19 @@ func (c *Config) validateFilter() error {
 	if err := validateFilterLevelNames(c.Filter.ExcludeLevels, "exclude_levels", validLevels); err != nil {
 		return err
 	}
-	if slices.Contains(c.Filter.ExcludePatterns, "") {
-		return fmt.Errorf("%w in exclude_patterns", apperrors.ErrEmptyFilterPattern)
-	}
-	if slices.Contains(c.Filter.IncludePatterns, "") {
-		return fmt.Errorf("%w in include_patterns", apperrors.ErrEmptyFilterPattern)
-	}
-	if err := validateRegexPatterns(c.Filter.ExcludePatterns, "exclude_patterns"); err != nil {
+	if err := validateFilterPatterns(c.Filter.ExcludePatterns, "exclude_patterns"); err != nil {
 		return err
 	}
-	if err := validateRegexPatterns(c.Filter.IncludePatterns, "include_patterns"); err != nil {
-		return err
+	return validateFilterPatterns(c.Filter.IncludePatterns, "include_patterns")
+}
+
+// validateFilterPatterns checks that a pattern list contains no empty strings
+// and that all entries are valid regular expressions.
+func validateFilterPatterns(patterns []string, field string) error {
+	if slices.Contains(patterns, "") {
+		return fmt.Errorf("%w in %s", apperrors.ErrEmptyFilterPattern, field)
 	}
-	return nil
+	return validateRegexPatterns(patterns, field)
 }
 
 // validateFilterLevelNames checks that all level names in the list are valid

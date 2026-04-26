@@ -490,7 +490,7 @@ func TestApplyCLIOverrides(t *testing.T) {
 		TimestampUTC:  &utc,
 		ColorsEnabled: &colors,
 		OutputFormat:  &format,
-		setFlags:      map[string]bool{"utc": true, "colors": true},
+		setFlags:      map[string]bool{"utc": true, "colors": true, "template": true, "format": true},
 	}
 
 	// Apply overrides

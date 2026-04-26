@@ -62,6 +62,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/sgaunet/logwrap/pkg/apperrors"
@@ -321,7 +322,7 @@ func parseCLIFlags(args []string) (*CLIFlags, error) {
 }
 
 func applyCLIOverrides(config *Config, flags *CLIFlags) {
-	if flags.Template != nil && *flags.Template != "" {
+	if flags.setFlags["template"] {
 		config.Prefix.Template = *flags.Template
 	}
 	if flags.setFlags["utc"] {
@@ -330,7 +331,7 @@ func applyCLIOverrides(config *Config, flags *CLIFlags) {
 	if flags.setFlags["colors"] {
 		config.Prefix.Colors.Enabled = *flags.ColorsEnabled
 	}
-	if flags.OutputFormat != nil && *flags.OutputFormat != "" {
+	if flags.setFlags["format"] {
 		config.Output.Format = *flags.OutputFormat
 	}
 }
@@ -369,9 +370,10 @@ func FindConfigFile() string {
 //   - Path traversal: rejects paths containing ".." after filepath.Clean
 //   - File type: only .yaml and .yml extensions are accepted (case-insensitive)
 func validateConfigPath(configFile string) error {
-	// Prevent path traversal attacks
+	// Prevent path traversal attacks by checking for ".." as a path component,
+	// not a substring — filenames like "backup..yaml" are valid.
 	cleaned := filepath.Clean(configFile)
-	if strings.Contains(cleaned, "..") {
+	if slices.Contains(strings.Split(cleaned, string(filepath.Separator)), "..") {
 		return apperrors.ErrPathTraversal
 	}
 

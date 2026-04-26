@@ -26,10 +26,12 @@ var (
 )
 
 const (
-	exitCodeSIGINT         = 130 // 128 + 2 (SIGINT)
-	exitCodeSIGTERM        = 143 // 128 + 15 (SIGTERM)
+	signalExitCodeBase     = 128 // UNIX convention: 128 + signal number
+	exitCodeSIGINT         = signalExitCodeBase + 2  // SIGINT
+	exitCodeSIGTERM        = signalExitCodeBase + 15 // SIGTERM
 	gracefulShutdownTimeout = 5 * time.Second
 	processorWaitTimeout    = 3 * time.Second
+	killTimeout             = 2 * time.Second
 	usage                   = `LogWrap - Command execution wrapper with configurable log prefixes
 
 Usage:
@@ -292,6 +294,16 @@ func run(cfg *config.Config, command []string) int {
 		procOpts = append(procOpts, processor.WithFilter(f))
 	}
 
+	// Set up signal handling before starting the child process to avoid
+	// a race where a signal arrives after Start() but before Notify(),
+	// which would use Go's default handler (os.Exit) and orphan the child.
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	defer ctxCancel()
+
+	procOpts = append(procOpts, processor.WithContext(ctx))
 	proc := processor.New(form, os.Stdout, procOpts...)
 
 	if err := exec.Start(); err != nil {
@@ -301,12 +313,7 @@ func run(cfg *config.Config, command []string) int {
 
 	stdout, stderr := exec.GetStreams()
 
-	// Set up signal handling
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
 	// Start stream processing in background
-	ctx := context.Background()
 	processingDone := make(chan error, 1)
 	go func() {
 		processingDone <- proc.ProcessStreams(ctx, stdout, stderr)
@@ -372,7 +379,16 @@ func handleSignalShutdown(exec *executor.Executor, proc *processor.Processor, si
 			fmt.Fprintf(os.Stderr, "Warning: failed to kill process: %v\n", err)
 		}
 		proc.Stop()
-		return <-cmdDone // Wait for process to actually die
+		// Wait for process to die, with a hard timeout to avoid hanging
+		// indefinitely if the process is in an unkillable state (e.g., D state on Linux).
+		killTimer := time.NewTimer(killTimeout)
+		defer killTimer.Stop()
+		select {
+		case cmdErr := <-cmdDone:
+			return cmdErr
+		case <-killTimer.C:
+			return nil
+		}
 	}
 }
 
@@ -391,7 +407,7 @@ func waitForProcessing(proc *processor.Processor, processingDone chan error) {
 	}
 }
 
-func determineExitCode(exec *executor.Executor, receivedSignal os.Signal, _ error) int {
+func determineExitCode(exec *executor.Executor, receivedSignal os.Signal, cmdErr error) int {
 	// If we received a signal, use signal-based exit code
 	if receivedSignal != nil {
 		switch receivedSignal {
@@ -399,9 +415,20 @@ func determineExitCode(exec *executor.Executor, receivedSignal os.Signal, _ erro
 			return exitCodeSIGINT
 		case syscall.SIGTERM:
 			return exitCodeSIGTERM
+		default:
+			if sig, ok := receivedSignal.(syscall.Signal); ok {
+				return signalExitCodeBase + int(sig)
+			}
+
+			return 1
 		}
 	}
 
-	// Otherwise use command's exit code
+	// If the command failed with a non-exit error (e.g., I/O error, context error),
+	// the executor's exit code stays at 0. Use 1 to avoid masking the failure.
+	if cmdErr != nil && exec.GetExitCode() == 0 {
+		return 1
+	}
+
 	return exec.GetExitCode()
 }

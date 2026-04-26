@@ -103,34 +103,30 @@ type LineFilter interface {
 
 // Processor handles real-time processing of command output streams.
 type Processor struct {
-	formatter Formatter
-	filter    LineFilter
-	output    io.Writer
-	wg        sync.WaitGroup
-	errors    []error
-	mutex     sync.Mutex
-	cancel    context.CancelFunc
-	stopCh    chan struct{}
-	stopOnce  sync.Once
+	formatter  Formatter
+	filter     LineFilter
+	output     io.Writer
+	wg         sync.WaitGroup
+	errors     []error
+	mutex      sync.Mutex
+	parentDone <-chan struct{} // closed when parent context is cancelled; nil if no WithContext
+	stopCh     chan struct{}
+	readers    []io.Reader // stored so Stop() can close them to unblock scanners
+	stopOnce   sync.Once
 }
 
 // Option defines a function that configures a Processor.
 type Option func(*Processor)
 
-// WithContext sets a cancellable context for the processor.
-// The derived context's cancel function is called when Stop() is invoked,
-// and the done channel is used to propagate cancellation to ProcessStreams.
+// WithContext enables context-based cancellation for the processor.
+// When Stop() is called or the parent context is cancelled, it signals
+// ProcessStreams to cancel processing. No goroutines are created until
+// ProcessStreams is called, so it is safe to create a processor with
+// WithContext and never call ProcessStreams.
 func WithContext(ctx context.Context) Option {
 	return func(p *Processor) {
-		derived, cancel := context.WithCancel(ctx) //nolint:gosec // G118 - cancel is called via Stop()
-		p.cancel = cancel
+		p.parentDone = ctx.Done()
 		p.stopCh = make(chan struct{})
-
-		// Monitor the derived context and close stopCh when it's done
-		go func() {
-			<-derived.Done()
-			close(p.stopCh)
-		}()
 	}
 }
 
@@ -147,7 +143,6 @@ func New(formatter Formatter, output io.Writer, opts ...Option) *Processor {
 	p := &Processor{
 		formatter: formatter,
 		output:    output,
-		cancel:    func() {},
 		errors:    make([]error, 0),
 	}
 
@@ -164,20 +159,14 @@ func (p *Processor) ProcessStreams(ctx context.Context, stdout, stderr io.Reader
 		return pkgerrors.ErrReadersNil
 	}
 
-	// If WithContext was used, merge the stop channel so either the passed
-	// ctx or Stop() can cancel processing.
-	if p.stopCh != nil {
-		var mergedCancel context.CancelFunc
-		ctx, mergedCancel = context.WithCancel(ctx)
-		defer mergedCancel()
+	p.mutex.Lock()
+	p.readers = []io.Reader{stdout, stderr}
+	p.mutex.Unlock()
 
-		go func() {
-			select {
-			case <-p.stopCh:
-				mergedCancel()
-			case <-ctx.Done():
-			}
-		}()
+	if p.stopCh != nil {
+		var cancel context.CancelFunc
+		ctx, cancel = p.setupCancellation(ctx)
+		defer cancel()
 	}
 
 	const streamCount = 2
@@ -199,19 +188,39 @@ func (p *Processor) ProcessStreams(ctx context.Context, stdout, stderr io.Reader
 
 	p.wg.Wait()
 
-	if len(p.errors) > 0 {
-		return fmt.Errorf("%w: %v", pkgerrors.ErrProcessingErrors, p.errors)
+	// Clear reader references so Stop() won't close them — the executor
+	// owns these pipes and will close them via Cleanup().
+	p.mutex.Lock()
+	p.readers = nil
+	p.mutex.Unlock()
+
+	p.Stop() // Clean up cancellation goroutines
+
+	if errs := p.GetErrors(); len(errs) > 0 {
+		return fmt.Errorf("%w: %v", pkgerrors.ErrProcessingErrors, errs)
 	}
 
 	return nil
 }
 
-// Stop cancels the processor context to stop stream processing.
+// Stop signals the processor to stop stream processing.
 // Safe to call multiple times - subsequent calls are no-ops.
+// If the readers implement io.Closer, they are closed to unblock
+// any in-progress scanner.Scan() calls.
 func (p *Processor) Stop() {
 	p.stopOnce.Do(func() {
-		if p.cancel != nil {
-			p.cancel()
+		if p.stopCh != nil {
+			close(p.stopCh)
+		}
+
+		p.mutex.Lock()
+		readers := p.readers
+		p.mutex.Unlock()
+
+		for _, r := range readers {
+			if c, ok := r.(io.Closer); ok {
+				_ = c.Close()
+			}
 		}
 	})
 }
@@ -230,6 +239,7 @@ func (p *Processor) Wait(timeout time.Duration) error {
 		return nil
 	case <-time.After(timeout):
 		p.Stop()
+		<-done
 		return fmt.Errorf("%w after %v", pkgerrors.ErrProcessorTimeout, timeout)
 	}
 }
@@ -242,6 +252,32 @@ func (p *Processor) GetErrors() []error {
 	errors := make([]error, len(p.errors))
 	copy(errors, p.errors)
 	return errors
+}
+
+// setupCancellation wires stopCh and parent context into the given ctx.
+// Returns the enhanced ctx and a cleanup function that must be deferred.
+func (p *Processor) setupCancellation(ctx context.Context) (context.Context, context.CancelFunc) {
+	ctx, mergedCancel := context.WithCancel(ctx) //nolint:gosec // G118 - cancel is returned to caller
+
+	go func() {
+		select {
+		case <-p.stopCh:
+			mergedCancel()
+		case <-ctx.Done():
+		}
+	}()
+
+	if p.parentDone != nil {
+		go func() {
+			select {
+			case <-p.parentDone:
+				p.Stop()
+			case <-p.stopCh:
+			}
+		}()
+	}
+
+	return ctx, mergedCancel
 }
 
 // processStream reads lines from a single stream using [bufio.Scanner].
@@ -287,12 +323,6 @@ func (p *Processor) processStream(ctx context.Context, stream io.Reader, streamT
 	scanner.Buffer(buf, maxScannerSize)
 
 	for scanner.Scan() {
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("context cancelled: %w", ctx.Err())
-		default:
-		}
-
 		line := scanner.Text()
 
 		if p.filter != nil && !p.filter.ShouldInclude(line) {
@@ -303,6 +333,14 @@ func (p *Processor) processStream(ctx context.Context, stream io.Reader, streamT
 
 		if _, err := p.output.Write([]byte(formattedLine + "\n")); err != nil {
 			return fmt.Errorf("failed to write to output: %w", err)
+		}
+
+		// Check for context cancellation after writing the line, not before,
+		// so that already-scanned lines are never silently dropped.
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
 		}
 	}
 
@@ -322,13 +360,12 @@ func (p *Processor) processStream(ctx context.Context, stream io.Reader, streamT
 }
 
 // isExpectedStreamError returns true for errors that occur during normal
-// process shutdown: EOF, closed file descriptors, and closed pipes.
+// process shutdown: closed file descriptors and closed pipes.
+// Note: bufio.Scanner.Err() never returns io.EOF (it returns nil at EOF),
+// and errors.Is already unwraps *os.PathError chains, so only os.ErrClosed
+// needs to be checked.
 func isExpectedStreamError(err error) bool {
-	if errors.Is(err, io.EOF) || errors.Is(err, os.ErrClosed) {
-		return true
-	}
-	var pathErr *os.PathError
-	return errors.As(err, &pathErr) && errors.Is(pathErr.Err, os.ErrClosed)
+	return errors.Is(err, os.ErrClosed)
 }
 
 func (p *Processor) addError(err error) {

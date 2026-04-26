@@ -99,6 +99,15 @@ func (f *Filter) passesLevelFilter(line string) bool {
 	}
 
 	detectedLevel := f.detectLevel(strings.ToUpper(line))
+
+	// Lines with no detected level always pass the level filter.
+	// Only lines with a recognized level keyword are subject to
+	// include/exclude rules. This prevents plain output (e.g.,
+	// "Starting server...") from being silently dropped.
+	if detectedLevel == "" {
+		return true
+	}
+
 	if len(f.includeLevels) > 0 && !f.includeLevels[detectedLevel] {
 		return false
 	}

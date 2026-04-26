@@ -63,6 +63,7 @@ import (
 	"time"
 
 	"github.com/itchyny/timefmt-go"
+	"github.com/sgaunet/logwrap/pkg/apperrors"
 	"github.com/sgaunet/logwrap/pkg/config"
 	"github.com/sgaunet/logwrap/pkg/processor"
 )
@@ -120,10 +121,22 @@ func New(cfg *config.Config) (*DefaultFormatter, error) {
 
 	colors := make(map[string]string)
 	if cfg.Prefix.Colors.Enabled {
+		infoCode, err := getColorCode(cfg.Prefix.Colors.Info)
+		if err != nil {
+			return nil, fmt.Errorf("invalid info color: %w", err)
+		}
+		errorCode, err := getColorCode(cfg.Prefix.Colors.Error)
+		if err != nil {
+			return nil, fmt.Errorf("invalid error color: %w", err)
+		}
+		timestampCode, err := getColorCode(cfg.Prefix.Colors.Timestamp)
+		if err != nil {
+			return nil, fmt.Errorf("invalid timestamp color: %w", err)
+		}
 		colors = map[string]string{
-			"info":      getColorCode(cfg.Prefix.Colors.Info),
-			"error":     getColorCode(cfg.Prefix.Colors.Error),
-			"timestamp": getColorCode(cfg.Prefix.Colors.Timestamp),
+			"info":      infoCode,
+			"error":     errorCode,
+			"timestamp": timestampCode,
 			"reset":     "\033[0m",
 		}
 	}
@@ -134,8 +147,17 @@ func New(cfg *config.Config) (*DefaultFormatter, error) {
 		userInfo:         userInfo,
 		pid:              os.Getpid(),
 		colors:           colors,
-		templateUsesLine: strings.Contains(cfg.Prefix.Template, ".Line"),
+		templateUsesLine: templateReferencesLine(cfg.Prefix.Template),
 	}, nil
+}
+
+// templateReferencesLine reports whether the template string uses the .Line
+// field, accounting for Go template whitespace-trim syntax ({{- and {{).
+func templateReferencesLine(tmpl string) bool {
+	return strings.Contains(tmpl, "{{.Line") ||
+		strings.Contains(tmpl, "{{ .Line") ||
+		strings.Contains(tmpl, "{{- .Line") ||
+		strings.Contains(tmpl, "{{-.Line")
 }
 
 // FormatLine formats a log line according to the configured output format.
@@ -388,19 +410,23 @@ func (f *DefaultFormatter) applyTimestampColor(text, color string) string {
 	return text
 }
 
-func getColorCode(colorName string) string {
-	colors := map[string]string{
-		"black":   "\033[30m",
-		"red":     "\033[31m",
-		"green":   "\033[32m",
-		"yellow":  "\033[33m",
-		"blue":    "\033[34m",
-		"magenta": "\033[35m",
-		"cyan":    "\033[36m",
-		"white":   "\033[37m",
-		"none":    "",
-		"":        "",
-	}
+var colorCodes = map[string]string{
+	"black":   "\033[30m",
+	"red":     "\033[31m",
+	"green":   "\033[32m",
+	"yellow":  "\033[33m",
+	"blue":    "\033[34m",
+	"magenta": "\033[35m",
+	"cyan":    "\033[36m",
+	"white":   "\033[37m",
+	"none":    "",
+	"":        "",
+}
 
-	return colors[strings.ToLower(colorName)]
+func getColorCode(colorName string) (string, error) {
+	code, ok := colorCodes[strings.ToLower(colorName)]
+	if !ok {
+		return "", fmt.Errorf("%w: %q", apperrors.ErrInvalidColor, colorName)
+	}
+	return code, nil
 }

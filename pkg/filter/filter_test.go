@@ -152,7 +152,7 @@ func TestFilter_IncludeLevels(t *testing.T) {
 		{"warn line", "WARN: disk space low", true},
 		{"info line", "INFO: started", false},
 		{"debug line", "DEBUG: variable dump", false},
-		{"no keyword", "regular message", false},
+		{"no keyword", "regular message", true}, // lines without a detected level pass through
 	}
 
 	for _, tt := range tests {
