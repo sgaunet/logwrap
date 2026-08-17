@@ -21,6 +21,11 @@ tasks:
     cmds:
       - golangci-lint run
 
+  vulncheck:
+    desc: "Scan dependencies for known vulnerabilities"
+    cmds:
+      - govulncheck ./...
+
   test:
     desc: "Run all tests"
     cmds:
