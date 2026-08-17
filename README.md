@@ -1,6 +1,5 @@
 # LogWrap
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/sgaunet/logwrap)](https://goreportcard.com/report/github.com/sgaunet/logwrap)
 [![GitHub release](https://img.shields.io/github/release/sgaunet/logwrap.svg)](https://github.com/sgaunet/logwrap/releases/latest)
 ![GitHub Downloads](https://img.shields.io/github/downloads/sgaunet/logwrap/total)
 ![Coverage Badge](https://raw.githubusercontent.com/wiki/sgaunet/logwrap/coverage-badge.svg)
