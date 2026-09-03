@@ -46,6 +46,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -66,10 +67,13 @@ const (
 type Executor struct {
 	cmd         *exec.Cmd
 	cancel      context.CancelFunc
-	stdoutPipe  io.ReadCloser
-	stderrPipe  io.ReadCloser
-	commandName string // stored for error messages
+	stdoutPipe  *os.File
+	stderrPipe  *os.File
+	stdoutWrite *os.File // child's write end, closed by the parent after Start
+	stderrWrite *os.File // child's write end, closed by the parent after Start
+	commandName string   // stored for error messages
 	exitCode    int
+	closeWrites sync.Once
 	isStarted   atomic.Bool
 	isFinished  atomic.Bool
 }
@@ -98,24 +102,37 @@ func New(command []string) (*Executor, error) {
 	cmd.WaitDelay = gracefulStopDelay
 	cmd.Stdin = os.Stdin
 
-	stdoutPipe, err := cmd.StdoutPipe()
+	// Pipes are created with os.Pipe rather than cmd.StdoutPipe/StderrPipe on
+	// purpose: Wait closes the pipes returned by cmd.StdoutPipe as soon as the
+	// child exits, which truncates (or drops entirely) any output still buffered
+	// in the pipe when the reader has not drained it yet. Because the caller
+	// reads the streams concurrently with Wait, that race silently loses output
+	// from short-lived commands. Files assigned to cmd.Stdout/cmd.Stderr are not
+	// owned by os/exec, so they stay readable until the reader hits EOF.
+	stdoutRead, stdoutWrite, err := os.Pipe()
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("failed to create stdout pipe for %q: %w", command[0], err)
 	}
 
-	stderrPipe, err := cmd.StderrPipe()
+	stderrRead, stderrWrite, err := os.Pipe()
 	if err != nil {
-		_ = stdoutPipe.Close()
+		_ = stdoutRead.Close()
+		_ = stdoutWrite.Close()
 		cancel()
 		return nil, fmt.Errorf("failed to create stderr pipe for %q: %w", command[0], err)
 	}
 
+	cmd.Stdout = stdoutWrite
+	cmd.Stderr = stderrWrite
+
 	executor := &Executor{
 		cmd:         cmd,
 		cancel:      cancel,
-		stdoutPipe:  stdoutPipe,
-		stderrPipe:  stderrPipe,
+		stdoutPipe:  stdoutRead,
+		stderrPipe:  stderrRead,
+		stdoutWrite: stdoutWrite,
+		stderrWrite: stderrWrite,
 		commandName: command[0],
 		exitCode:    0,
 	}
@@ -132,6 +149,11 @@ func (e *Executor) Start() error {
 	if err := e.cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start command %q: %w", e.commandName, err)
 	}
+
+	// The child holds its own descriptors now. Drop the parent's copies of the
+	// write ends so readers observe EOF once the command (and anything else
+	// inheriting its streams) exits.
+	e.closeWriteEnds()
 
 	e.isStarted.Store(true)
 	return nil
@@ -153,8 +175,8 @@ func (e *Executor) Wait() error {
 		var exitError *exec.ExitError
 
 		switch {
-		// ErrWaitDelay means the process exited but its pipes weren't fully
-		// drained before WaitDelay expired (e.g., a grandchild holds them open).
+		// ErrWaitDelay means WaitDelay expired while shutting the command down
+		// (e.g., it ignored the SIGTERM sent on context cancellation).
 		// The process itself succeeded, so treat this as a normal exit.
 		case errors.Is(err, exec.ErrWaitDelay):
 			e.isFinished.Store(true)
@@ -239,6 +261,7 @@ func (e *Executor) Kill() error {
 
 // Cleanup closes pipes and cancels context to release resources.
 func (e *Executor) Cleanup() {
+	e.closeWriteEnds()
 	if e.stdoutPipe != nil {
 		_ = e.stdoutPipe.Close()
 	}
@@ -248,6 +271,19 @@ func (e *Executor) Cleanup() {
 	if e.cancel != nil {
 		e.cancel()
 	}
+}
+
+// closeWriteEnds releases the parent's copies of the pipe write ends.
+// Safe to call more than once; subsequent closes are no-ops.
+func (e *Executor) closeWriteEnds() {
+	e.closeWrites.Do(func() {
+		if e.stdoutWrite != nil {
+			_ = e.stdoutWrite.Close()
+		}
+		if e.stderrWrite != nil {
+			_ = e.stderrWrite.Close()
+		}
+	})
 }
 
 // validateCommand performs minimal security validation on the command path.

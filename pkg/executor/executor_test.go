@@ -298,6 +298,42 @@ func TestExecutor_BothStreams(t *testing.T) {
 	assert.Contains(t, stderrContent, "stderr message")
 }
 
+// TestExecutor_NoOutputLossAfterWait guards against a regression where the
+// streams were created with cmd.StdoutPipe/StderrPipe. Wait closes those pipes
+// as soon as the child exits, so output still buffered in the pipe was lost
+// whenever the reader had not drained it yet -- which made output silently
+// disappear for short-lived commands. Reading only after Wait has returned
+// reproduces that race deterministically.
+func TestExecutor_NoOutputLossAfterWait(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell redirection not portable to Windows")
+	}
+
+	t.Parallel()
+
+	exec, err := executor.New([]string{"sh", "-c", "echo 'stdout message'; echo 'stderr message' >&2"})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		exec.Cleanup()
+	})
+
+	require.NoError(t, exec.Start())
+
+	stdout, stderr := exec.GetStreams()
+
+	// Deliberately wait before reading a single byte.
+	require.NoError(t, exec.Wait())
+
+	stdoutContent, err := io.ReadAll(stdout)
+	require.NoError(t, err)
+	stderrContent, err := io.ReadAll(stderr)
+	require.NoError(t, err)
+
+	assert.Contains(t, string(stdoutContent), "stdout message")
+	assert.Contains(t, string(stderrContent), "stderr message")
+}
+
 func TestExecutor_Stop(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Signal handling tests not reliable on Windows")
