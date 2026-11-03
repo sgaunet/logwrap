@@ -218,18 +218,7 @@ func validateStrftimeDirectives(format string) error {
 // An empty string is also accepted (treated as no color override).
 // Matching is case-insensitive: "Red", "RED", and "red" are all valid.
 func (c *Config) validateColors() error {
-	validColors := map[string]bool{
-		"black":   true,
-		"red":     true,
-		"green":   true,
-		"yellow":  true,
-		"blue":    true,
-		"magenta": true,
-		"cyan":    true,
-		"white":   true,
-		"none":    true,
-		"":        true,
-	}
+	validColors := validColorNames()
 
 	colors := []struct {
 		name  string
@@ -241,7 +230,8 @@ func (c *Config) validateColors() error {
 	}
 
 	for _, color := range colors {
-		if !validColors[strings.ToLower(color.value)] {
+		value := strings.ToLower(color.value)
+		if value != "" && !slices.Contains(validColors, value) {
 			return fmt.Errorf("%w '%s' for %s, valid colors: %s",
 				apperrors.ErrInvalidColor, color.value, color.name, getValidColorsString())
 		}
@@ -304,7 +294,7 @@ func validateOneOf(value string, validValues []string, desc string, errType erro
 //   - Empty keyword arrays are rejected — if a level is listed, it must have keywords
 //   - Empty strings within keyword arrays are rejected
 func (c *Config) validateLogLevel() error {
-	validLevels := []string{"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"}
+	validLevels := validLogLevels()
 
 	if !isValidLogLevel(c.LogLevel.DefaultStdout, validLevels) {
 		return fmt.Errorf("%w '%s', valid levels: %s",
@@ -378,7 +368,7 @@ func (c *Config) validateFilter() error {
 		return nil
 	}
 
-	validLevels := []string{"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"}
+	validLevels := validLogLevels()
 
 	if !c.LogLevel.Detection.Enabled {
 		if len(c.Filter.IncludeLevels) > 0 || len(c.Filter.ExcludeLevels) > 0 {
@@ -429,6 +419,5 @@ func validateRegexPatterns(patterns []string, field string) error {
 }
 
 func getValidColorsString() string {
-	colors := []string{"black", "red", "green", "yellow", "blue", "magenta", "cyan", "white", "none"}
-	return strings.Join(colors, ", ")
+	return strings.Join(validColorNames(), ", ")
 }
