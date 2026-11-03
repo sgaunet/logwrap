@@ -245,9 +245,9 @@ func getDefaultConfig() *Config {
 			},
 			Colors: ColorsConfig{
 				Enabled:   false,
-				Info:      "green",
-				Error:     "red",
-				Timestamp: "blue",
+				Info:      colorGreen,
+				Error:     colorRed,
+				Timestamp: colorBlue,
 			},
 			User: UserConfig{
 				Enabled: true,
@@ -262,15 +262,15 @@ func getDefaultConfig() *Config {
 			Format: "text",
 		},
 		LogLevel: LogLevelConfig{
-			DefaultStdout: "INFO",
-			DefaultStderr: "ERROR",
+			DefaultStdout: levelInfo,
+			DefaultStderr: levelError,
 			Detection: DetectionConfig{
 				Enabled: true,
 				Keywords: map[string][]string{
-					"error": {"ERROR", "FATAL", "PANIC", "error:", "Error:", "ERROR:"},
-					"warn":  {"WARN", "WARNING", "warn:", "Warn:", "WARN:", "WARNING:"},
-					"debug": {"DEBUG", "TRACE", "debug:", "Debug:", "DEBUG:", "TRACE:"},
-					"info":  {"INFO", "info:", "Info:", "INFO:"},
+					"error": {levelError, levelFatal, "PANIC", "error:", "Error:", "ERROR:"},
+					"warn":  {levelWarn, "WARNING", "warn:", "Warn:", "WARN:", "WARNING:"},
+					"debug": {levelDebug, levelTrace, "debug:", "Debug:", "DEBUG:", "TRACE:"},
+					"info":  {levelInfo, "info:", "Info:", "INFO:"},
 				},
 			},
 		},

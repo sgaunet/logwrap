@@ -20,29 +20,29 @@ type ColorTheme struct {
 // function (black, red, green, yellow, blue, magenta, cyan, white, none).
 var predefinedThemes = map[string]ColorTheme{
 	"default": {
-		Info:      "green",
-		Error:     "red",
-		Timestamp: "blue",
+		Info:      colorGreen,
+		Error:     colorRed,
+		Timestamp: colorBlue,
 	},
 	"warm": {
-		Info:      "yellow",
-		Error:     "red",
-		Timestamp: "magenta",
+		Info:      colorYellow,
+		Error:     colorRed,
+		Timestamp: colorMagenta,
 	},
 	"cool": {
-		Info:      "cyan",
-		Error:     "magenta",
-		Timestamp: "blue",
+		Info:      colorCyan,
+		Error:     colorMagenta,
+		Timestamp: colorBlue,
 	},
 	"ocean": {
-		Info:      "cyan",
-		Error:     "red",
-		Timestamp: "blue",
+		Info:      colorCyan,
+		Error:     colorRed,
+		Timestamp: colorBlue,
 	},
 	"monochrome": {
-		Info:      "white",
-		Error:     "white",
-		Timestamp: "white",
+		Info:      colorWhite,
+		Error:     colorWhite,
+		Timestamp: colorWhite,
 	},
 }
 

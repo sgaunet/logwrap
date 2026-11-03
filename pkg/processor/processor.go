@@ -257,7 +257,7 @@ func (p *Processor) GetErrors() []error {
 // setupCancellation wires stopCh and parent context into the given ctx.
 // Returns the enhanced ctx and a cleanup function that must be deferred.
 func (p *Processor) setupCancellation(ctx context.Context) (context.Context, context.CancelFunc) {
-	ctx, mergedCancel := context.WithCancel(ctx) //nolint:gosec // G118 - cancel is returned to caller
+	ctx, mergedCancel := context.WithCancel(ctx)
 
 	go func() {
 		select {
